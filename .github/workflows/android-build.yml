@@ -38,11 +38,11 @@ jobs:
 
       - name: Initialize Capacitor and Create Android Folder
         run: |
-          bunx cap init "WEXCalculatir" "com.aiapp.wexcalculator" --web-dir=dist
+          bunx cap init "WEXCalculator" "com.aiapp.wexcalculator" --web-dir=dist
           bunx cap add android
 
-      - name: Generate Android Icons and Splash Screens
-        run: bunx capacitor-assets generate --android
+      - name: Generate Android Icons (Silent Mode)
+        run: bunx capacitor-assets generate --android --assetPath icon.png
 
       - name: Sync Web Code to Android Project
         run: bunx cap sync android
