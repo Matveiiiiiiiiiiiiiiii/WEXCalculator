@@ -1,0 +1,57 @@
+name: Build Android APK
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Source Code
+        uses: actions/checkout@v4
+
+      - name: Setup Oven Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - name: Install Original Dependencies
+        run: bun install
+
+      - name: Force Install Capacitor Dependencies
+        run: bun add @capacitor/core @capacitor/android && bun add -d @capacitor/cli
+
+      - name: Build Web App (Vite)
+        run: bun run build
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          java-version: '17'
+          distribution: 'temurin'
+
+      - name: Setup Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Initialize Capacitor and Create Android Folder
+        run: |
+          bunx cap init "My AI App" "com.aiapp.mystudio" --web-dir=dist
+          bunx cap add android
+
+      - name: Sync Web Code to Android Project
+        run: bunx cap sync android
+
+      - name: Build APK via Gradle
+        run: |
+          cd android
+          ./gradlew assembleDebug
+
+      - name: Upload APK Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: my-ai-app-apk
+          path: android/app/build/outputs/apk/debug/app-debug.apk
