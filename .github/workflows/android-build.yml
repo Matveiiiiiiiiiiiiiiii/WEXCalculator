@@ -34,12 +34,9 @@ jobs:
           java-version: '17'
           distribution: 'temurin'
 
-      - name: Setup Android SDK
-        uses: android-actions/setup-android@v3
-
       - name: Initialize Capacitor and Create Android Folder
         run: |
-          bunx cap init "My AI App" "com.aiapp.mystudio" --web-dir=dist
+          bunx cap init "WEXCalculatir" "com.aiapp.wexcalculator" --web-dir=dist
           bunx cap add android
 
       - name: Sync Web Code to Android Project
@@ -49,9 +46,12 @@ jobs:
         run: |
           cd android
           ./gradlew assembleDebug
+        env:
+          ANDROID_HOME: /usr/local/lib/android/sdk
 
       - name: Upload APK Artifact
         uses: actions/upload-artifact@v4
         with:
-          name: my-ai-app-apk
+          name: wex-calculator-apk
           path: android/app/build/outputs/apk/debug/app-debug.apk
+
