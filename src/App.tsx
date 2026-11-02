@@ -37,7 +37,7 @@ import { PhotoMathModal } from './components/PhotoMathModal';
 import { AccountModal } from './components/AccountModal';
 import { GmailSendConfirmModal } from './components/GmailSendConfirmModal';
 import { initAuth, mapFirebaseUser } from './utils/googleAuth';
-import { Language, getTranslation } from './utils/i18n';
+import { Language, getTranslation, localizeSeedText } from './utils/i18n';
 
 const DEFAULT_SETTINGS: AppSettings = {
   theme: 'win-dark',
@@ -214,6 +214,7 @@ export default function App() {
   const [showShortcuts, setShowShortcuts] = useState<boolean>(false);
   const [showSettings, setShowSettings] = useState<boolean>(false);
   const [showPhotoMath, setShowPhotoMath] = useState<boolean>(false);
+  const [externalGraphExpr, setExternalGraphExpr] = useState<string | null>(null);
 
   // Calculator logic state
   const [mode, setMode] = useState<CalculatorMode>('standard');
@@ -298,21 +299,35 @@ export default function App() {
 
   const handleShareCalculationViaGmail = useCallback(
     (rec: CalculationRecord) => {
-      const subject = `ВексКалькулятор: Решение ${rec.expression} = ${rec.result}`;
+      const isUk = lang === 'uk';
+      const isEn = lang === 'en';
+      const subject = isUk
+        ? `VexCalculator: Розвʼязок ${rec.expression} = ${rec.result}`
+        : isEn
+        ? `VexCalculator: Solution ${rec.expression} = ${rec.result}`
+        : `VexCalculator: Решение ${rec.expression} = ${rec.result}`;
+
+      const stepPrefix = isUk ? 'Дія' : isEn ? 'Step' : 'Шаг';
+      const resultPrefix = isUk ? 'Підсумок' : isEn ? 'Result' : 'Итог';
+
       const stepsText = rec.steps
         .map(
           (s) =>
-            `Шаг ${s.stepNumber}: ${s.description}\n  ${s.subExpression} = ${s.subResult}\n  Итог: ${s.resultingExpression}`
+            `${stepPrefix} ${s.stepNumber}: ${localizeSeedText(s.description, lang)}\n  ${s.subExpression} = ${s.subResult}\n  ${resultPrefix}: ${s.resultingExpression}`
         )
         .join('\n\n');
 
-      const body = `Здравствуйте!\n\nНаправляю подробный пошаговый расчет из ВексКалькулятора:\n\nВыражение: ${rec.expression}\nРезультат: ${rec.result}\n\nПошаговое решение:\n${stepsText}\n\n${rec.note ? `Заметка: ${rec.note}\n` : ''}\nДата: ${new Date(rec.timestamp).toLocaleString()}\nСоздано в ВексКалькуляторе.`;
+      const body = isUk
+        ? `Вітаю!\n\nНадсилаю детальний покроковий розрахунок із VexCalculator:\n\nВираз: ${rec.expression}\nРезультат: ${rec.result}\n\nПокроковий розбір:\n${stepsText}\n\n${rec.note ? `Нотатка: ${localizeSeedText(rec.note, lang)}\n` : ''}\nДата: ${new Date(rec.timestamp).toLocaleString()}\nСтворено у VexCalculator.`
+        : isEn
+        ? `Hello!\n\nSharing step-by-step calculation from VexCalculator:\n\nExpression: ${rec.expression}\nResult: ${rec.result}\n\nStep-by-step breakdown:\n${stepsText}\n\n${rec.note ? `Note: ${localizeSeedText(rec.note, lang)}\n` : ''}\nDate: ${new Date(rec.timestamp).toLocaleString()}\nCreated in VexCalculator.`
+        : `Здравствуйте!\n\nНаправляю подробный пошаговый расчет из VexCalculator:\n\nВыражение: ${rec.expression}\nРезультат: ${rec.result}\n\nПошаговое решение:\n${stepsText}\n\n${rec.note ? `Заметка: ${rec.note}\n` : ''}\nДата: ${new Date(rec.timestamp).toLocaleString()}\nСоздано в VexCalculator.`;
 
       const stepsHtml = rec.steps
         .map(
           (s) =>
             `<div style="margin-bottom: 12px; padding: 10px; background: #f8fafc; border-radius: 8px; border-left: 3px solid #2563eb;">
-              <strong style="color: #1e293b;">Шаг ${s.stepNumber}:</strong> ${s.description}<br/>
+              <strong style="color: #1e293b;">${stepPrefix} ${s.stepNumber}:</strong> ${localizeSeedText(s.description, lang)}<br/>
               <code style="background: #e2e8f0; padding: 2px 6px; border-radius: 4px; font-weight: bold;">${s.subExpression} = ${s.subResult}</code>
             </div>`
         )
@@ -320,18 +335,18 @@ export default function App() {
 
       const html = `
         <div style="font-family: Arial, sans-serif; max-width: 600px; padding: 24px; border: 1px solid #cbd5e1; border-radius: 14px;">
-          <h2 style="color: #2563eb; margin-top: 0;">ВексКалькулятор — Пошаговое решение</h2>
+          <h2 style="color: #2563eb; margin-top: 0;">${isUk ? "VexCalculator — Покроковий розв'язок" : isEn ? 'VexCalculator — Step-by-Step Solution' : 'VexCalculator — Пошаговое решение'}</h2>
           <div style="background: #eff6ff; padding: 16px; border-radius: 10px; margin-bottom: 18px;">
-            <div style="font-size: 14px; color: #475569;">Выражение:</div>
+            <div style="font-size: 14px; color: #475569;">${isUk ? 'Вираз:' : isEn ? 'Expression:' : 'Выражение:'}</div>
             <div style="font-size: 18px; font-weight: bold; color: #1e293b; font-family: monospace;">${rec.expression}</div>
-            <div style="font-size: 14px; color: #475569; margin-top: 8px;">Результат:</div>
+            <div style="font-size: 14px; color: #475569; margin-top: 8px;">${isUk ? 'Результат:' : isEn ? 'Result:' : 'Результат:'}</div>
             <div style="font-size: 24px; font-weight: bold; color: #16a34a; font-family: monospace;">${rec.result}</div>
           </div>
-          <h3 style="color: #334155; font-size: 15px;">Шаги решения:</h3>
+          <h3 style="color: #334155; font-size: 15px;">${isUk ? "Кроки розв'язку:" : isEn ? 'Solution Steps:' : 'Шаги решения:'}</h3>
           ${stepsHtml}
-          ${rec.note ? `<p style="margin-top: 14px; font-style: italic; color: #64748b;">Заметка: ${rec.note}</p>` : ''}
+          ${rec.note ? `<p style="margin-top: 14px; font-style: italic; color: #64748b;">${isUk ? 'Нотатка:' : isEn ? 'Note:' : 'Заметка:'} ${localizeSeedText(rec.note, lang)}</p>` : ''}
           <hr style="border: none; border-top: 1px solid #e2e8f0; margin-top: 20px;" />
-          <p style="font-size: 11px; color: #94a3b8; margin-bottom: 0;">Отправлено с помощью Google Workspace Gmail API из ВексКалькулятора</p>
+          <p style="font-size: 11px; color: #94a3b8; margin-bottom: 0;">${isUk ? 'Надіслано за допомогою Google Workspace Gmail API з VexCalculator' : isEn ? 'Sent using Google Workspace Gmail API from VexCalculator' : 'Отправлено с помощью Google Workspace Gmail API из VexCalculator'}</p>
         </div>
       `;
 
@@ -343,7 +358,7 @@ export default function App() {
         defaultHtml: html,
       });
     },
-    [user]
+    [user, lang]
   );
 
   const handleShareGraphViaGmail = useCallback(
@@ -361,11 +376,21 @@ export default function App() {
 
   const handleOpenGmailCompose = useCallback(
     (type: 'calculation' | 'graph') => {
+      const isUk = lang === 'uk';
+      const isEn = lang === 'en';
       if (type === 'graph') {
         setMode('graphs');
         handleShareGraphViaGmail(
-          'ВексКалькулятор: Математический график',
-          'Делюсь математическим графиком функций из ВексКалькулятора.'
+          isUk
+            ? 'VexCalculator: Математичний графік'
+            : isEn
+            ? 'VexCalculator: Math Function Graph'
+            : 'VexCalculator: Математический график',
+          isUk
+            ? 'Ділюся математичним графіком функцій із VexCalculator.'
+            : isEn
+            ? 'Sharing mathematical functions graph from VexCalculator.'
+            : 'Делюсь математическим графиком функций из VexCalculator.'
         );
       } else {
         const topRec = records[0];
@@ -375,13 +400,21 @@ export default function App() {
           setGmailModalData({
             isOpen: true,
             defaultRecipient: user?.email || '',
-            defaultSubject: 'ВексКалькулятор: Вычисления',
-            defaultBody: 'Здравствуйте!\n\nДелюсь математическими расчетами из ВексКалькулятора.',
+            defaultSubject: isUk
+              ? 'VexCalculator: Обчислення'
+              : isEn
+              ? 'VexCalculator: Calculations'
+              : 'VexCalculator: Вычисления',
+            defaultBody: isUk
+              ? 'Вітаю!\n\nДілюся математичними розрахунками із VexCalculator.'
+              : isEn
+              ? 'Hello!\n\nSharing mathematical calculations from VexCalculator.'
+              : 'Здравствуйте!\n\nДелюсь математическими расчетами из VexCalculator.',
           });
         }
       }
     },
-    [records, user, handleShareCalculationViaGmail, handleShareGraphViaGmail]
+    [records, user, lang, handleShareCalculationViaGmail, handleShareGraphViaGmail]
   );
 
   // Sound feedback helper
@@ -516,7 +549,7 @@ export default function App() {
     if (evalResult.error) {
       triggerSound('error');
       setErrorMessage(evalResult.error);
-      setDisplayValue('Ошибка');
+      setDisplayValue(lang === 'uk' ? 'Помилка' : lang === 'en' ? 'Error' : 'Ошибка');
       setAwaitingNewOperand(true);
       return;
     }
@@ -563,98 +596,120 @@ export default function App() {
       let subExpr = '';
       let immediateResult = 0;
       let label = '';
+      const isUk = lang === 'uk';
+      const isEn = lang === 'en';
 
       switch (func) {
         case 'sqrt':
           if (currentNum < 0) {
             triggerSound('error');
-            setErrorMessage('Корень из отрицательного числа');
+            setErrorMessage(
+              isUk ? "Корінь із від'ємного числа" : isEn ? 'Square root of negative number' : 'Корень из отрицательного числа'
+            );
             return;
           }
           subExpr = `sqrt(${currentNum})`;
           immediateResult = Math.sqrt(currentNum);
-          label = `Квадратный корень √(${currentNum})`;
+          label = isUk ? `Квадратний корінь √(${currentNum})` : isEn ? `Square root √(${currentNum})` : `Квадратный корень √(${currentNum})`;
           break;
         case 'sqr':
           subExpr = `(${currentNum})²`;
           immediateResult = currentNum * currentNum;
-          label = `Возведение в квадрат (${currentNum})²`;
+          label = isUk ? `Піднесення до квадрата (${currentNum})²` : isEn ? `Square (${currentNum})²` : `Возведение в квадрат (${currentNum})²`;
           break;
         case 'recip':
           if (currentNum === 0) {
             triggerSound('error');
-            setErrorMessage('Деление на ноль');
+            setErrorMessage(isUk ? 'Ділення на нуль' : isEn ? 'Division by zero' : 'Деление на ноль');
             return;
           }
           subExpr = `1/(${currentNum})`;
           immediateResult = 1 / currentNum;
-          label = `Обратная величина 1/(${currentNum})`;
+          label = isUk ? `Обернена величина 1/(${currentNum})` : isEn ? `Reciprocal 1/(${currentNum})` : `Обратная величина 1/(${currentNum})`;
           break;
         case 'sin': {
           const rad = angleMode === 'DEG' ? (currentNum * Math.PI) / 180 : currentNum;
           subExpr = `sin(${currentNum})`;
           immediateResult = Math.sin(rad);
-          label = `Синус sin(${currentNum}${angleMode === 'DEG' ? '°' : ''})`;
+          label = isUk
+            ? `Синус sin(${currentNum}${angleMode === 'DEG' ? '°' : ''})`
+            : isEn
+            ? `Sine sin(${currentNum}${angleMode === 'DEG' ? '°' : ''})`
+            : `Синус sin(${currentNum}${angleMode === 'DEG' ? '°' : ''})`;
           break;
         }
         case 'cos': {
           const rad = angleMode === 'DEG' ? (currentNum * Math.PI) / 180 : currentNum;
           subExpr = `cos(${currentNum})`;
           immediateResult = Math.cos(rad);
-          label = `Косинус cos(${currentNum}${angleMode === 'DEG' ? '°' : ''})`;
+          label = isUk
+            ? `Косинус cos(${currentNum}${angleMode === 'DEG' ? '°' : ''})`
+            : isEn
+            ? `Cosine cos(${currentNum}${angleMode === 'DEG' ? '°' : ''})`
+            : `Косинус cos(${currentNum}${angleMode === 'DEG' ? '°' : ''})`;
           break;
         }
         case 'tan': {
           const rad = angleMode === 'DEG' ? (currentNum * Math.PI) / 180 : currentNum;
           subExpr = `tan(${currentNum})`;
           immediateResult = Math.tan(rad);
-          label = `Тангенс tan(${currentNum}${angleMode === 'DEG' ? '°' : ''})`;
+          label = isUk
+            ? `Тангенс tan(${currentNum}${angleMode === 'DEG' ? '°' : ''})`
+            : isEn
+            ? `Tangent tan(${currentNum}${angleMode === 'DEG' ? '°' : ''})`
+            : `Тангенс tan(${currentNum}${angleMode === 'DEG' ? '°' : ''})`;
           break;
         }
         case 'log':
           if (currentNum <= 0) {
             triggerSound('error');
-            setErrorMessage('Логарифм неположительного числа');
+            setErrorMessage(
+              isUk ? 'Логарифм не додатного числа' : isEn ? 'Logarithm of non-positive number' : 'Логарифм неположительного числа'
+            );
             return;
           }
           subExpr = `log(${currentNum})`;
           immediateResult = Math.log10(currentNum);
-          label = `Десятичный логарифм log₁₀(${currentNum})`;
+          label = isUk ? `Десятковий логарифм log₁₀(${currentNum})` : isEn ? `Common logarithm log₁₀(${currentNum})` : `Десятичный логарифм log₁₀(${currentNum})`;
           break;
         case 'ln':
           if (currentNum <= 0) {
             triggerSound('error');
-            setErrorMessage('Натуральный логарифм неположительного числа');
+            setErrorMessage(
+              isUk ? 'Натуральний логарифм не додатного числа' : isEn ? 'Natural logarithm of non-positive number' : 'Натуральный логарифм неположительного числа'
+            );
             return;
           }
           subExpr = `ln(${currentNum})`;
           immediateResult = Math.log(currentNum);
-          label = `Натуральный логарифм ln(${currentNum})`;
+          label = isUk ? `Натуральний логарифм ln(${currentNum})` : isEn ? `Natural logarithm ln(${currentNum})` : `Натуральный логарифм ln(${currentNum})`;
           break;
         case 'fact':
           if (currentNum < 0 || !Number.isInteger(currentNum)) {
             triggerSound('error');
-            setErrorMessage('Факториал целого неотрицательного числа');
+            setErrorMessage(
+              isUk ? "Факторіал цілого невід'ємного числа" : isEn ? 'Factorial of non-negative integer' : 'Факториал целого неотрицательного числа'
+            );
             return;
           }
           subExpr = `${currentNum}!`;
           immediateResult = factorial(currentNum);
-          label = `Факториал ${currentNum}!`;
+          label = isUk ? `Факторіал ${currentNum}!` : isEn ? `Factorial ${currentNum}!` : `Факториал ${currentNum}!`;
           break;
         case 'abs':
           subExpr = `|${currentNum}|`;
           immediateResult = Math.abs(currentNum);
-          label = `Модуль |${currentNum}|`;
+          label = isUk ? `Модуль |${currentNum}|` : isEn ? `Absolute |${currentNum}|` : `Модуль |${currentNum}|`;
           break;
         case 'exp':
           subExpr = `e^(${currentNum})`;
           immediateResult = Math.exp(currentNum);
-          label = `Экспонента e^(${currentNum})`;
+          label = isUk ? `Експонента e^(${currentNum})` : isEn ? `Exponential e^(${currentNum})` : `Экспонента e^(${currentNum})`;
           break;
         case 'tenPower':
           subExpr = `10^(${currentNum})`;
           immediateResult = Math.pow(10, currentNum);
-          label = `10 в степени ${currentNum}`;
+          label = isUk ? `10 у степені ${currentNum}` : isEn ? `10 to the power of ${currentNum}` : `10 в степени ${currentNum}`;
           break;
         default:
           return;
@@ -1073,6 +1128,8 @@ export default function App() {
                 isDark={isDark}
                 lang={lang}
                 onShareViaGmail={handleShareGraphViaGmail}
+                externalFunction={externalGraphExpr}
+                onClearExternalFunction={() => setExternalGraphExpr(null)}
               />
             ) : mode === 'fractions' ? (
               <FractionsKeypad
@@ -1086,12 +1143,14 @@ export default function App() {
                 onAddRecord={(rec) => setRecords((prev) => [rec, ...prev])}
                 triggerSound={triggerSound}
                 isDark={isDark}
+                lang={lang}
               />
             ) : mode === 'finance' ? (
               <FinanceView
                 onAddRecord={(rec) => setRecords((prev) => [rec, ...prev])}
                 triggerSound={triggerSound}
                 isDark={isDark}
+                lang={lang}
               />
             ) : (
               <>
@@ -1194,6 +1253,11 @@ export default function App() {
         isOpen={showPhotoMath}
         onClose={() => setShowPhotoMath(false)}
         onSolveExpression={handlePhotoMathSolve}
+        onOpenInGraphs={(graphExpr) => {
+          setExternalGraphExpr(graphExpr);
+          setMode('graphs');
+          triggerSound('operator');
+        }}
         lang={lang}
         isDark={isDark}
       />

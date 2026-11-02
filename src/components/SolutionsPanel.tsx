@@ -19,7 +19,7 @@ import {
   ArrowRight,
   Mail
 } from 'lucide-react';
-import { Language, getTranslation } from '../utils/i18n';
+import { Language, getTranslation, localizeSeedText } from '../utils/i18n';
 
 interface SolutionsPanelProps {
   records: CalculationRecord[];
@@ -241,7 +241,7 @@ export const SolutionsPanel: React.FC<SolutionsPanelProps> = ({
             className={`p-1.5 rounded transition-colors text-xs ${
               isDark ? 'hover:bg-slate-800 text-slate-400' : 'hover:bg-slate-200 text-slate-600'
             }`}
-            title="Закрыть"
+            title={getTranslation('close', lang)}
           >
             ✕
           </button>
@@ -309,10 +309,10 @@ export const SolutionsPanel: React.FC<SolutionsPanelProps> = ({
           <div className="flex items-center gap-1 text-[11px]">
             {(
               [
-                { id: 'all', label: 'Все' },
-                { id: 'standard', label: 'Обычные' },
-                { id: 'scientific', label: 'Инженерные' },
-                { id: 'programmer', label: 'Программист' },
+                { id: 'all', label: getTranslation('all', lang) },
+                { id: 'standard', label: getTranslation('regular', lang) },
+                { id: 'scientific', label: getTranslation('scientific', lang) },
+                { id: 'programmer', label: getTranslation('programmer', lang) },
               ] as const
             ).map((tab) => (
               <button
@@ -347,16 +347,16 @@ export const SolutionsPanel: React.FC<SolutionsPanelProps> = ({
               <History className="w-7 h-7" />
             </div>
             <div>
-              <h3 className="font-semibold text-sm mb-1">Пока нет вычислений</h3>
+              <h3 className="font-semibold text-sm mb-1">{getTranslation('noSolutionsYet', lang)}</h3>
               <p className="text-xs text-slate-400 max-w-xs leading-relaxed">
-                Выполните любое вычисление на калькуляторе — здесь появится его подробная история и каждый шаг решения!
+                {getTranslation('noSolutionsDesc', lang)}
               </p>
             </div>
 
             {/* Quick interactive test samples */}
             <div className="w-full pt-2 space-y-1.5">
               <span className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider block mb-2">
-                Попробовать примеры:
+                {getTranslation('trySamples', lang)}
               </span>
               <button
                 onClick={() => onAddSample('(125 + 75) × 4 - 50')}
@@ -448,7 +448,7 @@ export const SolutionsPanel: React.FC<SolutionsPanelProps> = ({
                       className={`p-1 rounded transition-colors ${
                         isDark ? 'hover:bg-slate-700 text-slate-300' : 'hover:bg-slate-100 text-slate-600'
                       }`}
-                      title="Копировать выражение и ответ"
+                      title={getTranslation('copyRecord', lang)}
                     >
                       {isCopied ? (
                         <Check className="w-3.5 h-3.5 text-emerald-500" />
@@ -459,7 +459,7 @@ export const SolutionsPanel: React.FC<SolutionsPanelProps> = ({
                     <button
                       onClick={() => onDeleteRecord(rec.id)}
                       className="p-1 rounded hover:text-rose-500 transition-colors"
-                      title="Удалить это решение"
+                      title={getTranslation('deleteRecord', lang)}
                     >
                       <Trash2 className="w-3.5 h-3.5" />
                     </button>
@@ -475,7 +475,7 @@ export const SolutionsPanel: React.FC<SolutionsPanelProps> = ({
                         type="text"
                         value={tempNote}
                         onChange={(e) => setTempNote(e.target.value)}
-                        placeholder="Название или заметка (например: Аренда)..."
+                        placeholder={getTranslation('notePlaceholder', lang)}
                         className={`text-xs px-2 py-1 rounded flex-1 outline-none ${
                           isDark
                             ? 'bg-slate-900 border border-slate-700 text-white'
@@ -497,7 +497,7 @@ export const SolutionsPanel: React.FC<SolutionsPanelProps> = ({
                       className="mb-1.5 flex items-center gap-1.5 text-xs text-amber-500 hover:underline cursor-pointer"
                     >
                       <Tag className="w-3 h-3" />
-                      <span className="font-medium text-[11px]">{rec.note}</span>
+                      <span className="font-medium text-[11px]">{localizeSeedText(rec.note, lang)}</span>
                     </div>
                   ) : null}
 
@@ -522,7 +522,7 @@ export const SolutionsPanel: React.FC<SolutionsPanelProps> = ({
                       >
                         <span className="flex items-center gap-1.5 text-[11px] font-semibold text-blue-400">
                           <Sparkles className="w-3 h-3" />
-                          Пошаговое решение ({rec.steps.length} {rec.steps.length === 1 ? 'действие' : 'действия'})
+                          {getTranslation('stepByStep', lang)} ({rec.steps.length} {rec.steps.length === 1 ? getTranslation('stepSingle', lang) : getTranslation('stepsPlural', lang)})
                         </span>
                         {isExpanded ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
                       </button>
@@ -543,7 +543,7 @@ export const SolutionsPanel: React.FC<SolutionsPanelProps> = ({
                               </span>
                               <div className="flex-1 min-w-0">
                                 <div className="text-[11px] text-slate-400 font-sans font-medium">
-                                  {step.description}
+                                  {localizeSeedText(step.description, lang)}
                                 </div>
                                 <div className="flex items-center gap-1.5 text-xs mt-0.5">
                                   <span className="font-semibold text-slate-200">
@@ -637,7 +637,7 @@ export const SolutionsPanel: React.FC<SolutionsPanelProps> = ({
             }`}
           >
             {allCopied ? <Check className="w-3.5 h-3.5" /> : <Copy className="w-3.5 h-3.5" />}
-            <span>{allCopied ? 'Скопировано!' : 'Копировать всё'}</span>
+            <span>{allCopied ? getTranslation('copied', lang) : getTranslation('copyAll', lang)}</span>
           </button>
 
           <button

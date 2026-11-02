@@ -2,17 +2,20 @@ import React, { useState } from 'react';
 import { UnitCategory, UNIT_CATEGORIES, convertUnitsWithSteps } from '../utils/converterEngine';
 import { CalculationRecord } from '../types/calculator';
 import { ArrowLeftRight, Check, Sparkles } from 'lucide-react';
+import { Language, getTranslation } from '../utils/i18n';
 
 interface ConverterViewProps {
   onAddRecord: (record: CalculationRecord) => void;
   triggerSound: (type: 'click' | 'operator' | 'equals' | 'clear' | 'error') => void;
   isDark: boolean;
+  lang?: Language;
 }
 
 export const ConverterView: React.FC<ConverterViewProps> = ({
   onAddRecord,
   triggerSound,
   isDark,
+  lang = 'ru',
 }) => {
   const [category, setCategory] = useState<UnitCategory>('length');
   const cat = UNIT_CATEGORIES[category];
@@ -24,6 +27,15 @@ export const ConverterView: React.FC<ConverterViewProps> = ({
   // Perform live conversion
   const valNum = parseFloat(inputValue) || 0;
   const conversion = convertUnitsWithSteps(category, fromUnit, toUnit, valNum);
+
+  const categoryLabels: Record<UnitCategory, string> = {
+    length: getTranslation('lengthUnit', lang),
+    mass: getTranslation('massUnit', lang),
+    temperature: getTranslation('temperatureUnit', lang),
+    speed: getTranslation('speedUnit', lang),
+    data: getTranslation('dataUnit', lang),
+    volume: getTranslation('volumeUnit', lang),
+  };
 
   const handleSwap = () => {
     triggerSound('click');
@@ -53,7 +65,7 @@ export const ConverterView: React.FC<ConverterViewProps> = ({
       rawResult: conversion.result,
       steps: conversion.steps,
       mode: 'converter',
-      note: `Конвертер: ${cat.name}`,
+      note: `${getTranslation('converter', lang)}: ${categoryLabels[category]}`,
     };
 
     onAddRecord(record);
@@ -77,12 +89,12 @@ export const ConverterView: React.FC<ConverterViewProps> = ({
       <div className="flex flex-wrap gap-1.5 pb-2 border-b border-slate-800/40">
         {(
           [
-            { id: 'length', label: 'Длина' },
-            { id: 'mass', label: 'Масса' },
-            { id: 'temperature', label: 'Температура' },
-            { id: 'speed', label: 'Скорость' },
-            { id: 'data', label: 'Данные' },
-            { id: 'volume', label: 'Объем' },
+            { id: 'length', label: categoryLabels.length },
+            { id: 'mass', label: categoryLabels.mass },
+            { id: 'temperature', label: categoryLabels.temperature },
+            { id: 'speed', label: categoryLabels.speed },
+            { id: 'data', label: categoryLabels.data },
+            { id: 'volume', label: categoryLabels.volume },
           ] as const
         ).map((item) => (
           <button
@@ -106,14 +118,14 @@ export const ConverterView: React.FC<ConverterViewProps> = ({
         {/* Source */}
         <div className="space-y-1.5">
           <label className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider">
-            Из величины
+            {getTranslation('fromUnit', lang)}
           </label>
           <input
             type="number"
             value={inputValue}
             onChange={(e) => setInputValue(e.target.value)}
             className={inputClass}
-            placeholder="Введите значение..."
+            placeholder={getTranslation('enterValue', lang)}
           />
           <select
             value={fromUnit}
@@ -132,17 +144,17 @@ export const ConverterView: React.FC<ConverterViewProps> = ({
         <div className="space-y-1.5">
           <div className="flex items-center justify-between">
             <label className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider">
-              В величину
+              {getTranslation('toUnit', lang)}
             </label>
             <button
               onClick={handleSwap}
               className={`p-1 rounded text-xs flex items-center gap-1 ${
                 isDark ? 'hover:bg-slate-800 text-blue-400' : 'hover:bg-slate-200 text-blue-600'
               }`}
-              title="Поменять местами"
+              title={getTranslation('swapUnits', lang)}
             >
               <ArrowLeftRight className="w-3.5 h-3.5" />
-              <span className="text-[10px]">Реверс</span>
+              <span className="text-[10px]">{getTranslation('reverse', lang)}</span>
             </button>
           </div>
           <div
@@ -174,7 +186,7 @@ export const ConverterView: React.FC<ConverterViewProps> = ({
       >
         <div className="font-semibold text-slate-300 flex items-center gap-1.5">
           <Sparkles className="w-3 h-3 text-blue-400" />
-          Формула преобразования:
+          {getTranslation('conversionFormula', lang)}
         </div>
         <div className="font-mono text-[11px]">{conversion.formula}</div>
       </div>
@@ -185,7 +197,7 @@ export const ConverterView: React.FC<ConverterViewProps> = ({
         className="w-full py-2.5 rounded-lg bg-blue-600 hover:bg-blue-500 text-white font-bold text-xs flex items-center justify-center gap-2 shadow-md transition-all active:scale-98"
       >
         <Check className="w-4 h-4" />
-        Зафиксировать решение в журнале
+        {getTranslation('logToSolutions', lang)}
       </button>
     </div>
   );

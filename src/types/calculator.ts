@@ -75,3 +75,70 @@ export interface AppSettings {
   autoExpandSteps: boolean;
   historyLimit: number;
 }
+
+export type ProblemSubject =
+  | 'math'
+  | 'physics'
+  | 'chemistry'
+  | 'geometry'
+  | 'economics'
+  | 'biology'
+  | 'cs'
+  | 'other';
+
+export interface ProblemParameter {
+  symbol?: string;
+  label: string;
+  value: string;
+  raw?: string;
+  unit?: string;
+}
+
+export interface ProblemToFindItem {
+  symbol: string;
+  description: string;
+}
+
+export interface ProblemSolutionStep {
+  stepNumber: number;
+  title: string;
+  explanation: string;
+  formula?: string;
+  calculation?: string;
+  unitCheck?: string;
+}
+
+export interface ProblemComputationItem {
+  id: string;
+  name: string;
+  formula: string;
+  expression: string;
+  result: string;
+  unit?: string;
+}
+
+export interface ProblemComputationBlock {
+  primaryExpression: string;
+  recommendedMode: 'standard' | 'scientific' | 'fractions' | 'finance' | 'graphs';
+  computations: ProblemComputationItem[];
+  graphSuggestion?: string;
+}
+
+export interface AiProblemSolution {
+  id: string;
+  subject: ProblemSubject;
+  subjectTitle: string;
+  topic: string;
+  problemStatement: string;
+  givenData: ProblemParameter[];
+  siConversions?: string[];
+  toFind?: ProblemToFindItem[];
+  lawsAndFormulas?: string[];
+  solutionSteps: ProblemSolutionStep[];
+  finalAnswer: string;
+  computationBlock: ProblemComputationBlock;
+  confidence?: number;
+  explanation?: string;
+}
+
+

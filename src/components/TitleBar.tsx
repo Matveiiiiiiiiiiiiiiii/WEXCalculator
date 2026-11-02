@@ -131,7 +131,7 @@ export const TitleBar: React.FC<TitleBarProps> = ({
                 : 'bg-white text-blue-600 shadow-xs'
               : 'opacity-70 hover:opacity-100'
           }`}
-          title="Режим калькулятора"
+          title={getTranslation('calcMode', lang)}
         >
           <Calculator className="w-3.5 h-3.5" />
           <span>{getTranslation('standard', lang)}</span>
@@ -145,7 +145,7 @@ export const TitleBar: React.FC<TitleBarProps> = ({
                 : 'bg-white text-blue-600 shadow-xs'
               : 'opacity-70 hover:opacity-100'
           }`}
-          title="Режим построения графиков"
+          title={getTranslation('graphsMode', lang)}
         >
           <LineChart className="w-3.5 h-3.5" />
           <span>{getTranslation('graphs', lang)}</span>
@@ -201,7 +201,7 @@ export const TitleBar: React.FC<TitleBarProps> = ({
             className={`px-1.5 py-1 text-[11px] font-medium rounded-md transition-all flex items-center gap-1 ${
               isDark ? 'hover:bg-slate-800 text-slate-300' : 'hover:bg-slate-200 text-slate-700'
             }`}
-            title="Сменить язык (Language)"
+            title={getTranslation('changeLanguage', lang)}
           >
             <span>{currentLang.flag}</span>
             <span className="hidden sm:inline uppercase font-bold text-[10px]">{currentLang.code}</span>
@@ -219,7 +219,7 @@ export const TitleBar: React.FC<TitleBarProps> = ({
                 }`}
               >
                 <div className="px-3 py-1 text-[10px] uppercase font-bold tracking-wider text-slate-400 border-b border-slate-700/30 mb-1">
-                  Language / Язык
+                  Language / {currentLang.nativeName}
                 </div>
                 {LANGUAGES.map((l) => (
                   <button
@@ -254,8 +254,8 @@ export const TitleBar: React.FC<TitleBarProps> = ({
           className={`px-1.5 sm:px-2 py-1 text-[11px] font-medium rounded-md transition-all flex items-center gap-1 ${
             isDark ? 'hover:bg-slate-800 text-slate-300' : 'hover:bg-slate-200 text-slate-700'
           }`}
-          title="Сменить стиль интерфейса (Windows 11 / macOS)"
-          aria-label="Сменить тему ОС"
+          title={getTranslation('changeOsTheme', lang)}
+          aria-label={getTranslation('changeOsTheme', lang)}
         >
           <Laptop className="w-3.5 h-3.5" />
           <span className="hidden md:inline">
@@ -297,7 +297,7 @@ export const TitleBar: React.FC<TitleBarProps> = ({
               ? 'hover:bg-slate-800 text-slate-400'
               : 'hover:bg-slate-200 text-slate-500'
           }`}
-          title={soundEnabled ? 'Звук включен' : 'Звук выключен'}
+          title={soundEnabled ? getTranslation('soundOn', lang) : getTranslation('soundOff', lang)}
           aria-label={getTranslation('sound', lang)}
         >
           {soundEnabled ? <Volume2 className="w-3.5 h-3.5" /> : <VolumeX className="w-3.5 h-3.5" />}
@@ -353,8 +353,8 @@ export const TitleBar: React.FC<TitleBarProps> = ({
               ? 'hover:bg-slate-800 text-slate-400'
               : 'hover:bg-slate-200 text-slate-500'
           }`}
-          title="Закрепить окно"
-          aria-label="Закрепить окно"
+          title={getTranslation('pinWindow', lang)}
+          aria-label={getTranslation('pinWindow', lang)}
         >
           <Pin className="w-3.5 h-3.5" />
         </button>
@@ -365,8 +365,8 @@ export const TitleBar: React.FC<TitleBarProps> = ({
           className={`p-1.5 rounded-md transition-colors hidden sm:inline-flex ${
             isDark ? 'hover:bg-slate-800 text-slate-400' : 'hover:bg-slate-200 text-slate-500'
           }`}
-          title="Полный экран"
-          aria-label="Полный экран"
+          title={getTranslation('fullscreen', lang)}
+          aria-label={getTranslation('fullscreen', lang)}
         >
           {isFullscreen ? <Minimize2 className="w-3.5 h-3.5" /> : <Maximize2 className="w-3.5 h-3.5" />}
         </button>

@@ -33,6 +33,8 @@ interface GraphingViewProps {
   isDark: boolean;
   lang: Language;
   onShareViaGmail?: (subject: string, body: string, htmlBody?: string) => void;
+  externalFunction?: string | null;
+  onClearExternalFunction?: () => void;
 }
 
 const PRESET_FUNCTIONS = [
@@ -53,6 +55,8 @@ export const GraphingView: React.FC<GraphingViewProps> = ({
   isDark,
   lang,
   onShareViaGmail,
+  externalFunction,
+  onClearExternalFunction,
 }) => {
   const [functions, setFunctions] = useState<GraphFunction[]>([
     {
@@ -70,6 +74,31 @@ export const GraphingView: React.FC<GraphingViewProps> = ({
       showDerivative: false,
     },
   ]);
+
+  useEffect(() => {
+    if (externalFunction && externalFunction.trim()) {
+      const clean = externalFunction.trim();
+      const existing = functions.find((f) => f.expression === clean);
+      if (existing) {
+        setSelectedFunctionId(existing.id);
+      } else {
+        const newId = 'fn_' + Date.now();
+        const color = PALETTE[functions.length % PALETTE.length];
+        setFunctions((prev) => [
+          ...prev,
+          {
+            id: newId,
+            expression: clean,
+            color,
+            visible: true,
+            showDerivative: false,
+          },
+        ]);
+        setSelectedFunctionId(newId);
+      }
+      onClearExternalFunction?.();
+    }
+  }, [externalFunction, functions, onClearExternalFunction]);
 
   const [newExpr, setNewExpr] = useState('');
   const [showRoots, setShowRoots] = useState(true);
@@ -677,12 +706,12 @@ export const GraphingView: React.FC<GraphingViewProps> = ({
         ? `${functions.length} скрытых функций`
         : 'обзор';
 
-    const subject = `ВексКалькулятор: Математический график (${countLabel})`;
-    const body = `Здравствуйте!\n\nДелюсь математическим графиком из приложения ВексКалькулятор:\n\nФункции:\n${funcsList}\n\nДиапазон отображения:\nX: [${domain[0].toFixed(2)}, ${domain[1].toFixed(2)}]\nY: [${range[0].toFixed(2)}, ${range[1].toFixed(2)}]\n\nСоздано в ВексКалькуляторе.`;
+    const subject = `VexCalculator: Математический график (${countLabel})`;
+    const body = `Здравствуйте!\n\nДелюсь математическим графиком из приложения VexCalculator:\n\nФункции:\n${funcsList}\n\nДиапазон отображения:\nX: [${domain[0].toFixed(2)}, ${domain[1].toFixed(2)}]\nY: [${range[0].toFixed(2)}, ${range[1].toFixed(2)}]\n\nСоздано в VexCalculator.`;
 
     const htmlBody = `
       <div style="font-family: Arial, sans-serif; max-width: 600px; padding: 20px; border: 1px solid #e2e8f0; border-radius: 12px;">
-        <h2 style="color: #2563eb; margin-top: 0;">ВексКалькулятор — Математический отчёт</h2>
+        <h2 style="color: #2563eb; margin-top: 0;">VexCalculator — Математический отчёт</h2>
         <p>Построенный график содержит следующие функции:</p>
         <ul style="line-height: 1.8;">
           ${targetFunctions
@@ -825,7 +854,7 @@ export const GraphingView: React.FC<GraphingViewProps> = ({
                 ? 'bg-emerald-600/20 text-emerald-500 font-semibold'
                 : 'opacity-60 hover:opacity-100'
             }`}
-            title="Интеграл (Площадь под кривой)"
+            title={getTranslation('integral', lang)}
           >
             {getTranslation('integral', lang)}
           </button>
@@ -840,7 +869,7 @@ export const GraphingView: React.FC<GraphingViewProps> = ({
                 ? 'hover:bg-slate-800 text-slate-300'
                 : 'hover:bg-slate-200 text-slate-700'
             }`}
-            title="Таблица значений (x, y)"
+            title={getTranslation('tableOfValues', lang)}
             aria-label="Table of values"
           >
             <Table className="w-3.5 h-3.5" />
@@ -852,7 +881,7 @@ export const GraphingView: React.FC<GraphingViewProps> = ({
             className={`p-1.5 rounded-md transition-colors ${
               isDark ? 'hover:bg-slate-800 text-slate-300' : 'hover:bg-slate-200 text-slate-700'
             }`}
-            title="Скачать SVG"
+            title={getTranslation('downloadSvg', lang)}
             aria-label="Export SVG"
           >
             <Download className="w-3.5 h-3.5" />
@@ -863,7 +892,7 @@ export const GraphingView: React.FC<GraphingViewProps> = ({
             <button
               onClick={handleShareGraph}
               className="flex items-center gap-1 px-2.5 py-1 rounded-md text-[11px] font-medium bg-red-600/10 hover:bg-red-600/20 text-red-600 transition-colors"
-              title="Поделиться графиком по Gmail"
+              title={getTranslation('shareGraphGmail', lang)}
             >
               <Share2 className="w-3 h-3" />
               <span>Gmail</span>
@@ -904,7 +933,7 @@ export const GraphingView: React.FC<GraphingViewProps> = ({
               <button
                 onClick={() => handleAddFunction()}
                 className="p-1.5 rounded-lg bg-blue-600 hover:bg-blue-500 text-white font-medium shadow-xs transition-transform active:scale-95"
-                title="Добавить"
+                title={getTranslation('add', lang)}
               >
                 <Plus className="w-4 h-4" />
               </button>
@@ -951,7 +980,7 @@ export const GraphingView: React.FC<GraphingViewProps> = ({
                           handleToggleVisible(fn.id);
                         }}
                         className="p-1 rounded-md opacity-60 hover:opacity-100 transition-opacity"
-                        title={fn.visible ? 'Скрыть' : 'Показать'}
+                        title={fn.visible ? getTranslation('hide', lang) : getTranslation('show', lang)}
                       >
                         {fn.visible ? (
                           <Eye className="w-3.5 h-3.5" />
@@ -965,7 +994,7 @@ export const GraphingView: React.FC<GraphingViewProps> = ({
                           handleDeleteFunction(fn.id);
                         }}
                         className="p-1 rounded-md opacity-60 hover:opacity-100 hover:text-red-500 transition-all"
-                        title="Удалить"
+                        title={getTranslation('delete', lang)}
                       >
                         <Trash2 className="w-3.5 h-3.5" />
                       </button>
@@ -984,7 +1013,7 @@ export const GraphingView: React.FC<GraphingViewProps> = ({
                           ? 'bg-blue-500/20 text-blue-400 font-bold'
                           : 'opacity-50 hover:opacity-100'
                       }`}
-                      title="Показать f'(x) пунктиром"
+                      title={getTranslation('showDerivative', lang)}
                     >
                       <Activity className="w-2.5 h-2.5" />
                       <span>f'(x)</span>
@@ -1113,7 +1142,7 @@ export const GraphingView: React.FC<GraphingViewProps> = ({
 
             <div className="p-4 border-b border-inherit flex items-center justify-between text-xs">
               <div className="flex items-center gap-2">
-                <span className="opacity-70">Шаг (step):</span>
+                <span className="opacity-70">{getTranslation('stepLabel', lang)} (step):</span>
                 <select
                   value={tableStep}
                   onChange={(e) => setTableStep(parseFloat(e.target.value))}
@@ -1126,7 +1155,7 @@ export const GraphingView: React.FC<GraphingViewProps> = ({
                 </select>
               </div>
               <span className="opacity-60 text-[11px]">
-                {tableValues.length} значений в [ {domain[0].toFixed(1)}, {domain[1].toFixed(1)} ]
+                {tableValues.length} {getTranslation('valuesInRange', lang)} [ {domain[0].toFixed(1)}, {domain[1].toFixed(1)} ]
               </span>
             </div>
 
@@ -1148,7 +1177,7 @@ export const GraphingView: React.FC<GraphingViewProps> = ({
                     >
                       <td className="py-1 px-3 font-semibold">{row.x}</td>
                       <td className="py-1 px-3">
-                        {row.y !== null ? row.y : <span className="text-red-500">не опр.</span>}
+                        {row.y !== null ? row.y : <span className="text-red-500">{getTranslation('undefinedVal', lang)}</span>}
                       </td>
                     </tr>
                   ))}
