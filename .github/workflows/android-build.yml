@@ -22,31 +22,18 @@ jobs:
       - name: Install Original Dependencies
         run: bun install
 
-      - name: Force Install Core and Capacitor Dependencies
+      - name: Auto-Detect and Install Missing Studio Libraries
         run: |
+          # Устанавливаем базовые вещи, которые точно нужны Capacitor и анимациям
           bun add canvas-confetti @capacitor/core @capacitor/android || true
           bun add -d @types/canvas-confetti @capacitor/cli || true
-
-      - name: Inject Unstoppable Web Build Config
-        run: |
-          cat << 'EOF' > vite.patch.js
-          const fs = require('fs');
-          const path = 'vite.config.ts';
-          if (fs.existsSync(path)) {
-            let content = fs.readFileSync(path, 'utf8');
-            if (!content.includes('external')) {
-              content = content.replace(
-                /build\s*:\s*\{/,
-                `build: {
-                  rollupOptions: {
-                    external: (id) => !id.startsWith('.') && !id.startsWith('/') && !id.includes(':\\\\') && !id.includes('node_modules'),
-                  },`
-              );
-              fs.writeFileSync(path, content, 'utf8');
-            }
-          }
-          EOF
-          node vite.patch.js || true
+          
+          # Сканируем новые файлы на наличие других популярных библиотек из AI Studio и ставим их
+          if grep -q "lucide-react" -r src/; then bun add lucide-react || true; fi
+          if grep -q "framer-motion" -r src/; then bun add framer-motion || true; fi
+          if grep -q "recharts" -r src/; then bun add recharts || true; fi
+          if grep -q "clsx" -r src/; then bun add clsx || true; fi
+          if grep -q "tailwind-merge" -r src/; then bun add tailwind-merge || true; fi
 
       - name: Disable Strict TypeScript Checks for Build
         run: |
