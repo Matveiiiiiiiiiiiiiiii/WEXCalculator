@@ -22,10 +22,8 @@ jobs:
       - name: Install Original Dependencies
         run: bun install
 
-      - name: Force Install Capacitor and Assets Dependencies
-        run: |
-          bun add @capacitor/core @capacitor/android
-          bun add -d @capacitor/cli @capacitor/assets
+      - name: Force Install Capacitor Dependencies
+        run: bun add @capacitor/core @capacitor/android && bun add -d @capacitor/cli
 
       - name: Build Web App (Vite)
         run: bun run build
@@ -40,9 +38,6 @@ jobs:
         run: |
           bunx cap init "WEXCalculator" "com.aiapp.wexcalculator" --web-dir=dist
           bunx cap add android
-
-      - name: Generate Android Icons (Silent Mode)
-        run: bunx capacitor-assets generate --android --assetPath icon.png
 
       - name: Sync Web Code to Android Project
         run: bunx cap sync android
