@@ -20,6 +20,7 @@ import {
   Mail
 } from 'lucide-react';
 import { Language, getTranslation, localizeSeedText } from '../utils/i18n';
+import { motion, AnimatePresence } from 'framer-motion';
 
 interface SolutionsPanelProps {
   records: CalculationRecord[];
@@ -527,38 +528,64 @@ export const SolutionsPanel: React.FC<SolutionsPanelProps> = ({
                         {isExpanded ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
                       </button>
 
-                      {isExpanded && (
-                        <div
-                          className={`mt-2 p-2 rounded-lg space-y-2 text-xs font-mono ${
-                            isDark ? 'bg-slate-900/80 border border-slate-800' : 'bg-slate-50 border border-slate-200'
-                          }`}
-                        >
-                          {rec.steps.map((step) => (
-                            <div
-                              key={step.stepNumber}
-                              className="flex items-start gap-2 border-b border-dashed border-slate-800/40 last:border-b-0 pb-1.5 last:pb-0"
-                            >
-                              <span className="w-5 h-5 rounded-full bg-blue-500/20 text-blue-400 flex items-center justify-center font-bold text-[10px] shrink-0 mt-0.5">
-                                {step.stepNumber}
-                              </span>
-                              <div className="flex-1 min-w-0">
-                                <div className="text-[11px] text-slate-400 font-sans font-medium">
-                                  {localizeSeedText(step.description, lang)}
+                      <AnimatePresence>
+                        {isExpanded && (
+                          <motion.div
+                            initial="hidden"
+                            animate="visible"
+                            exit="hidden"
+                            variants={{
+                              hidden: { opacity: 0, height: 0 },
+                              visible: {
+                                opacity: 1,
+                                height: 'auto',
+                                transition: {
+                                  staggerChildren: 0.08,
+                                  delayChildren: 0.04,
+                                  duration: 0.22,
+                                  ease: 'easeOut',
+                                },
+                              },
+                            }}
+                            className={`mt-2 p-2 rounded-lg space-y-2 text-xs font-mono overflow-hidden ${
+                              isDark ? 'bg-slate-900/80 border border-slate-800' : 'bg-slate-50 border border-slate-200'
+                            }`}
+                          >
+                            {rec.steps.map((step) => (
+                              <motion.div
+                                key={step.stepNumber}
+                                variants={{
+                                  hidden: { opacity: 0, y: 7 },
+                                  visible: {
+                                    opacity: 1,
+                                    y: 0,
+                                    transition: { duration: 0.22, ease: 'easeOut' },
+                                  },
+                                }}
+                                className="flex items-start gap-2 border-b border-dashed border-slate-800/40 last:border-b-0 pb-1.5 last:pb-0"
+                              >
+                                <span className="w-5 h-5 rounded-full bg-blue-500/20 text-blue-400 flex items-center justify-center font-bold text-[10px] shrink-0 mt-0.5">
+                                  {step.stepNumber}
+                                </span>
+                                <div className="flex-1 min-w-0">
+                                  <div className="text-[11px] text-slate-400 font-sans font-medium">
+                                    {localizeSeedText(step.description, lang)}
+                                  </div>
+                                  <div className="flex items-center gap-1.5 text-xs mt-0.5">
+                                    <span className="font-semibold text-slate-200">
+                                      {step.subExpression}
+                                    </span>
+                                    <span className="text-slate-400">=</span>
+                                    <span className="font-bold text-emerald-400">
+                                      {step.subResult}
+                                    </span>
+                                  </div>
                                 </div>
-                                <div className="flex items-center gap-1.5 text-xs mt-0.5">
-                                  <span className="font-semibold text-slate-200">
-                                    {step.subExpression}
-                                  </span>
-                                  <span className="text-slate-400">=</span>
-                                  <span className="font-bold text-emerald-400">
-                                    {step.subResult}
-                                  </span>
-                                </div>
-                              </div>
-                            </div>
-                          ))}
-                        </div>
-                      )}
+                              </motion.div>
+                            ))}
+                          </motion.div>
+                        )}
+                      </AnimatePresence>
                     </div>
                   )}
 

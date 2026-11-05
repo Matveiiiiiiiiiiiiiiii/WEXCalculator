@@ -706,12 +706,12 @@ export const GraphingView: React.FC<GraphingViewProps> = ({
         ? `${functions.length} скрытых функций`
         : 'обзор';
 
-    const subject = `VexCalculator: Математический график (${countLabel})`;
-    const body = `Здравствуйте!\n\nДелюсь математическим графиком из приложения VexCalculator:\n\nФункции:\n${funcsList}\n\nДиапазон отображения:\nX: [${domain[0].toFixed(2)}, ${domain[1].toFixed(2)}]\nY: [${range[0].toFixed(2)}, ${range[1].toFixed(2)}]\n\nСоздано в VexCalculator.`;
+    const subject = `WexCalculator: Математический график (${countLabel})`;
+    const body = `Здравствуйте!\n\nДелюсь математическим графиком из приложения WexCalculator:\n\nФункции:\n${funcsList}\n\nДиапазон отображения:\nX: [${domain[0].toFixed(2)}, ${domain[1].toFixed(2)}]\nY: [${range[0].toFixed(2)}, ${range[1].toFixed(2)}]\n\nСоздано в WexCalculator.`;
 
     const htmlBody = `
       <div style="font-family: Arial, sans-serif; max-width: 600px; padding: 20px; border: 1px solid #e2e8f0; border-radius: 12px;">
-        <h2 style="color: #2563eb; margin-top: 0;">VexCalculator — Математический отчёт</h2>
+        <h2 style="color: #2563eb; margin-top: 0;">WexCalculator — Математический отчёт</h2>
         <p>Построенный график содержит следующие функции:</p>
         <ul style="line-height: 1.8;">
           ${targetFunctions

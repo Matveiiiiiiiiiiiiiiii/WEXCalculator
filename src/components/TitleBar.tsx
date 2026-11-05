@@ -17,7 +17,8 @@ import {
   Camera,
   Globe,
   LineChart,
-  User as UserIcon
+  User as UserIcon,
+  Zap,
 } from 'lucide-react';
 
 interface TitleBarProps {
@@ -37,6 +38,7 @@ interface TitleBarProps {
   onOpenShortcuts: () => void;
   onOpenSettings: () => void;
   onOpenPhotoMath: () => void;
+  onOpenQuickAnswers?: () => void;
   lang: Language;
   setLang: (l: Language) => void;
   user: UserProfile | null;
@@ -62,6 +64,7 @@ export const TitleBar: React.FC<TitleBarProps> = ({
   onOpenShortcuts,
   onOpenSettings,
   onOpenPhotoMath,
+  onOpenQuickAnswers,
   lang,
   setLang,
   user,
@@ -183,10 +186,22 @@ export const TitleBar: React.FC<TitleBarProps> = ({
           </span>
         </button>
 
+        {/* Quick Answers Button */}
+        {onOpenQuickAnswers && (
+          <button
+            onClick={onOpenQuickAnswers}
+            className="px-2 py-1 text-[11px] font-semibold rounded-md transition-all flex items-center gap-1.5 bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-400 hover:to-orange-400 text-white shadow-xs cursor-pointer active:scale-95"
+            title={lang === 'uk' ? 'Швидкі відповіді та бліц-розрахунки' : 'Быстрые ответы и блиц-расчёты'}
+          >
+            <Zap className="w-3.5 h-3.5 fill-white" />
+            <span className="hidden sm:inline">{lang === 'uk' ? 'Швидкі відповіді' : 'Быстрые ответы'}</span>
+          </button>
+        )}
+
         {/* Photo Math Scanner Button */}
         <button
           onClick={onOpenPhotoMath}
-          className={`px-2 py-1 text-[11px] font-semibold rounded-md transition-all flex items-center gap-1.5 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white shadow-xs`}
+          className={`px-2 py-1 text-[11px] font-semibold rounded-md transition-all flex items-center gap-1.5 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white shadow-xs cursor-pointer active:scale-95`}
           title={getTranslation('photoMathDesc', lang)}
           aria-label={getTranslation('photoMath', lang)}
         >

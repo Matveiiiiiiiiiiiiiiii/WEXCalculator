@@ -1,6 +1,8 @@
 import React from 'react';
 import { CalculatorMode, ProgrammerBase } from '../types/calculator';
 import { Delete } from 'lucide-react';
+import { ScientificConstantsMenu } from './ScientificConstantsMenu';
+import { Language } from '../utils/i18n';
 
 interface KeypadProps {
   mode: CalculatorMode;
@@ -17,6 +19,8 @@ interface KeypadProps {
   onToggleSign: () => void;
   isDark: boolean;
   osTheme: 'windows' | 'macos';
+  onInsertConstant?: (value: string | number, symbol: string) => void;
+  lang?: Language;
 }
 
 export const Keypad: React.FC<KeypadProps> = ({
@@ -34,6 +38,8 @@ export const Keypad: React.FC<KeypadProps> = ({
   onToggleSign,
   isDark,
   osTheme,
+  onInsertConstant,
+  lang = 'ru',
 }) => {
   // Common button styling classes
   const btnBase =
@@ -174,6 +180,18 @@ export const Keypad: React.FC<KeypadProps> = ({
   if (mode === 'scientific') {
     return (
       <div className="p-3 space-y-2">
+        {/* Scientific Constants Sub-menu */}
+        {onInsertConstant && (
+          <div className="mb-1">
+            <ScientificConstantsMenu
+              onInsertConstant={onInsertConstant}
+              lang={lang}
+              isDark={isDark}
+              osTheme={osTheme}
+            />
+          </div>
+        )}
+
         {/* Top Trig & Advanced row */}
         <div className="grid grid-cols-6 gap-1">
           <button onClick={() => onScientificFunc('sin')} className={funcClass} title="Синус">

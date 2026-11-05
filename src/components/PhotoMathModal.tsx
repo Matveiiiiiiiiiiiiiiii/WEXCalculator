@@ -32,7 +32,25 @@ import {
   ArrowRight,
   FileText,
   Send,
+  Volume2,
+  VolumeX,
+  Sliders,
+  HelpCircle,
+  Bookmark,
+  Star,
+  CheckCircle2,
+  Printer,
+  Download as DownloadIcon,
+  Pause,
+  Play,
+  ZoomIn,
+  Contrast,
+  Search,
 } from 'lucide-react';
+import confetti from 'canvas-confetti';
+import { solveProblemLocally } from '../utils/localProblemSolver';
+import { WexAIEngine, wexSolutionToAiSolution } from '../utils/wexAI';
+import { WexProblemBankService, BankProblem, TOTAL_PROBLEMS_COUNT, bankProblemToAiSolution } from '../utils/wexProblemBank';
 
 interface PhotoMathModalProps {
   isOpen: boolean;
@@ -871,7 +889,10 @@ export const PhotoMathModal: React.FC<PhotoMathModalProps> = ({
   lang,
   isDark,
 }) => {
-  const [tab, setTab] = useState<'camera' | 'upload' | 'text' | 'samples'>('camera');
+  const [tab, setTab] = useState<'camera' | 'upload' | 'text' | 'samples' | 'bank1000'>('camera');
+  const [bankSearch, setBankSearch] = useState<string>('');
+  const [bankSubject, setBankSubject] = useState<string>('all');
+  const [bankDifficulty, setBankDifficulty] = useState<string>('all');
   const [selectedImage, setSelectedImage] = useState<string | null>(null);
   const [isSolving, setIsSolving] = useState<boolean>(false);
   const [userPrompt, setUserPrompt] = useState<string>('');
@@ -880,17 +901,31 @@ export const PhotoMathModal: React.FC<PhotoMathModalProps> = ({
   const [lastSubmittedText, setLastSubmittedText] = useState<string | null>(null);
   const [copiedItemId, setCopiedItemId] = useState<string | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [isSpeaking, setIsSpeaking] = useState<boolean>(false);
 
-  // Camera high-definition state
+  // Camera high-definition & fixation state
   const [facingMode, setFacingMode] = useState<'environment' | 'user'>('environment');
   const [hasTorch, setHasTorch] = useState<boolean>(false);
   const [torchOn, setTorchOn] = useState<boolean>(false);
   const [cameraResBadge, setCameraResBadge] = useState<string>('Full HD');
   const [shutterFlash, setShutterFlash] = useState<boolean>(false);
   const [capturedPreview, setCapturedPreview] = useState<string | null>(null);
+  const [isFrozen, setIsFrozen] = useState<boolean>(false);
+  const [frozenPreview, setFrozenPreview] = useState<string | null>(null);
+  const [zoomLevel, setZoomLevel] = useState<number>(1);
+  const [contrastMode, setContrastMode] = useState<'normal' | 'notebook' | 'bw'>('normal');
+  const [cameraBlocked, setCameraBlocked] = useState<boolean>(false);
 
   const localizedSamples = React.useMemo(() => getLocalizedSampleProblems(lang), [lang]);
+  const filteredBankProblems = React.useMemo(() => {
+    return WexProblemBankService.search(bankSearch, bankSubject, bankDifficulty);
+  }, [bankSearch, bankSubject, bankDifficulty]);
   const [solvedProblem, setSolvedProblem] = useState<AiProblemSolution | null>(localizedSamples[0]);
+  const [showWhatIf, setShowWhatIf] = useState<boolean>(false);
+  const [whatIfValues, setWhatIfValues] = useState<Record<string, number>>({});
+  const [showQuiz, setShowQuiz] = useState<boolean>(false);
+  const [quizSelected, setQuizSelected] = useState<number | null>(null);
+  const [showFormulas, setShowFormulas] = useState<boolean>(false);
 
   // Keep sample problem updated when language toggles
   useEffect(() => {
@@ -900,6 +935,40 @@ export const PhotoMathModal: React.FC<PhotoMathModalProps> = ({
       return matching || prev;
     });
   }, [lang, localizedSamples]);
+
+  // Toggle voice speech synthesis
+  const handleToggleSpeech = useCallback(() => {
+    if (!('speechSynthesis' in window) || !solvedProblem) return;
+    if (isSpeaking) {
+      window.speechSynthesis.cancel();
+      setIsSpeaking(false);
+      return;
+    }
+    window.speechSynthesis.cancel();
+    const parts = [
+      solvedProblem.subjectTitle,
+      solvedProblem.topic,
+      solvedProblem.problemStatement,
+      ...(solvedProblem.solutionSteps || []).map((s) => `${s.title}. ${s.explanation}`),
+      `Відповідь: ${solvedProblem.finalAnswer}`,
+    ];
+    const utterance = new SpeechSynthesisUtterance(parts.join('. '));
+    utterance.lang = lang === 'uk' ? 'uk-UA' : lang === 'en' ? 'en-US' : 'ru-RU';
+    utterance.rate = 1.0;
+    utterance.onend = () => setIsSpeaking(false);
+    utterance.onerror = () => setIsSpeaking(false);
+    setIsSpeaking(true);
+    window.speechSynthesis.speak(utterance);
+  }, [solvedProblem, isSpeaking, lang]);
+
+  // Clean up speech when modal unmounts or solvedProblem changes
+  useEffect(() => {
+    return () => {
+      if ('speechSynthesis' in window) {
+        window.speechSynthesis.cancel();
+      }
+    };
+  }, [solvedProblem]);
 
   const videoRef = useRef<HTMLVideoElement>(null);
   const streamRef = useRef<MediaStream | null>(null);
@@ -911,8 +980,15 @@ export const PhotoMathModal: React.FC<PhotoMathModalProps> = ({
       streamRef.current = null;
     }
     setErrorMessage(null);
+    setCameraBlocked(false);
+    setIsFrozen(false);
+    setFrozenPreview(null);
 
     try {
+      if (!navigator.mediaDevices?.getUserMedia) {
+        throw new Error('Camera not supported');
+      }
+
       const constraints: MediaStreamConstraints = {
         video: {
           facingMode,
@@ -940,6 +1016,9 @@ export const PhotoMathModal: React.FC<PhotoMathModalProps> = ({
             }
           }
         };
+        await videoRef.current.play().catch((err) => {
+          console.warn('Camera autoplay prevented', err);
+        });
       }
 
       // Detect torch capabilities
@@ -949,6 +1028,7 @@ export const PhotoMathModal: React.FC<PhotoMathModalProps> = ({
         setHasTorch(Boolean(capabilities.torch));
       }
     } catch {
+      setCameraBlocked(true);
       setErrorMessage(getTranslation('cameraAccessDenied', lang));
     }
   }, [facingMode, lang]);
@@ -1022,8 +1102,81 @@ export const PhotoMathModal: React.FC<PhotoMathModalProps> = ({
     }
   };
 
+  // Toggle Digital Zoom (1x -> 1.5x -> 2x -> 3x -> 1x)
+  const handleCycleZoom = () => {
+    setZoomLevel((prev) => (prev === 1 ? 1.5 : prev === 1.5 ? 2 : prev === 2 ? 3 : 1));
+  };
+
+  // Toggle Contrast Mode (normal -> notebook -> bw -> normal)
+  const handleCycleContrast = () => {
+    setContrastMode((prev) => (prev === 'normal' ? 'notebook' : prev === 'notebook' ? 'bw' : 'normal'));
+  };
+
+  // Freeze/Unfreeze Live Viewfinder Frame (Camera Fixation)
+  const handleToggleFreeze = () => {
+    if (!isFrozen) {
+      if (!videoRef.current) return;
+      const video = videoRef.current;
+      const width = video.videoWidth || 1920;
+      const height = video.videoHeight || 1080;
+
+      const canvas = document.createElement('canvas');
+      canvas.width = width;
+      canvas.height = height;
+      const ctx = canvas.getContext('2d');
+      if (!ctx) return;
+
+      // Draw current video frame to canvas
+      ctx.drawImage(video, 0, 0, width, height);
+
+      // Apply contrast if enabled
+      if (contrastMode !== 'normal') {
+        try {
+          const imgData = ctx.getImageData(0, 0, width, height);
+          const d = imgData.data;
+          const contrast = contrastMode === 'bw' ? 1.7 : 1.35;
+          const intercept = 128 * (1 - contrast);
+          for (let i = 0; i < d.length; i += 4) {
+            if (contrastMode === 'bw') {
+              const gray = 0.299 * d[i] + 0.587 * d[i + 1] + 0.114 * d[i + 2];
+              const val = Math.min(255, Math.max(0, gray * contrast + intercept));
+              d[i] = val;
+              d[i + 1] = val;
+              d[i + 2] = val;
+            } else {
+              d[i] = Math.min(255, Math.max(0, d[i] * contrast + intercept));
+              d[i + 1] = Math.min(255, Math.max(0, d[i + 1] * contrast + intercept));
+              d[i + 2] = Math.min(255, Math.max(0, d[i + 2] * contrast + intercept));
+            }
+          }
+          ctx.putImageData(imgData, 0, 0);
+        } catch {
+          // Fallback
+        }
+      }
+
+      const highResDataUrl = canvas.toDataURL('image/jpeg', 0.95);
+      setFrozenPreview(highResDataUrl);
+      setIsFrozen(true);
+      video.pause();
+    } else {
+      setIsFrozen(false);
+      setFrozenPreview(null);
+      if (videoRef.current) {
+        videoRef.current.play().catch(() => {});
+      }
+    }
+  };
+
   // Capture frame from video with contrast & math-text enhancement pass
   const snapCamera = () => {
+    if (isFrozen && frozenPreview) {
+      setCapturedPreview(frozenPreview);
+      setSelectedImage(frozenPreview);
+      solveProblemWithAi(frozenPreview);
+      return;
+    }
+
     if (!videoRef.current) return;
     const video = videoRef.current;
     const width = video.videoWidth || 1920;
@@ -1046,12 +1199,20 @@ export const PhotoMathModal: React.FC<PhotoMathModalProps> = ({
     try {
       const imgData = ctx.getImageData(0, 0, width, height);
       const d = imgData.data;
-      const contrast = 1.15; // 15% text contrast stretch
+      const contrast = contrastMode === 'bw' ? 1.7 : contrastMode === 'notebook' ? 1.35 : 1.15;
       const intercept = 128 * (1 - contrast);
       for (let i = 0; i < d.length; i += 4) {
-        d[i] = Math.min(255, Math.max(0, d[i] * contrast + intercept));
-        d[i + 1] = Math.min(255, Math.max(0, d[i + 1] * contrast + intercept));
-        d[i + 2] = Math.min(255, Math.max(0, d[i + 2] * contrast + intercept));
+        if (contrastMode === 'bw') {
+          const gray = 0.299 * d[i] + 0.587 * d[i + 1] + 0.114 * d[i + 2];
+          const val = Math.min(255, Math.max(0, gray * contrast + intercept));
+          d[i] = val;
+          d[i + 1] = val;
+          d[i + 2] = val;
+        } else {
+          d[i] = Math.min(255, Math.max(0, d[i] * contrast + intercept));
+          d[i + 1] = Math.min(255, Math.max(0, d[i + 1] * contrast + intercept));
+          d[i + 2] = Math.min(255, Math.max(0, d[i + 2] * contrast + intercept));
+        }
       }
       ctx.putImageData(imgData, 0, 0);
     } catch {
@@ -1067,6 +1228,8 @@ export const PhotoMathModal: React.FC<PhotoMathModalProps> = ({
   // Reset captured preview to retake
   const handleRetakeCamera = () => {
     setCapturedPreview(null);
+    setIsFrozen(false);
+    setFrozenPreview(null);
     startCamera();
   };
 
@@ -1098,6 +1261,22 @@ export const PhotoMathModal: React.FC<PhotoMathModalProps> = ({
 
     if (targetImage) setLastSubmittedImage(targetImage);
     if (targetText) setLastSubmittedText(targetText);
+
+    // 1. Instant 0ms WexAI offline solving for pure text tasks
+    if (!targetImage && targetText && targetText.trim()) {
+      try {
+        const wexSol = WexAIEngine.solve(targetText, lang as any);
+        if (wexSol && wexSol.confidence >= 0.9) {
+          const aiSol = wexSolutionToAiSolution(wexSol, targetText, lang);
+          setSolvedProblem(aiSol);
+          try { confetti({ particleCount: 45, spread: 60, origin: { y: 0.55 } }); } catch {}
+          setIsSolving(false);
+          return;
+        }
+      } catch (err) {
+        console.warn('WexAI fast-path deferred to network:', err);
+      }
+    }
 
     try {
       const response = await fetch('/api/solve-problem', {
@@ -1134,26 +1313,99 @@ export const PhotoMathModal: React.FC<PhotoMathModalProps> = ({
             confidence: data.confidence || 0.98,
           };
           setSolvedProblem(resultSolution);
+          try {
+            confetti({ particleCount: 45, spread: 60, origin: { y: 0.55 } });
+          } catch {}
           setIsSolving(false);
           return;
         } else if (data.error) {
+          if (targetText) {
+            try {
+              const wexSol = WexAIEngine.solve(targetText, lang as any);
+              if (wexSol) {
+                setSolvedProblem(wexSolutionToAiSolution(wexSol, targetText, lang));
+                try { confetti({ particleCount: 45, spread: 60, origin: { y: 0.55 } }); } catch {}
+                setIsSolving(false);
+                return;
+              }
+            } catch {}
+          }
+          const localFallback = solveProblemLocally(targetText || '', lang);
+          if (localFallback) {
+            setSolvedProblem(localFallback);
+            try { confetti({ particleCount: 45, spread: 60, origin: { y: 0.55 } }); } catch {}
+            setIsSolving(false);
+            return;
+          }
           setErrorMessage(data.error);
           setIsSolving(false);
           return;
         }
       } else {
+        if (targetText) {
+          try {
+            const wexSol = WexAIEngine.solve(targetText, lang as any);
+            if (wexSol) {
+              setSolvedProblem(wexSolutionToAiSolution(wexSol, targetText, lang));
+              try { confetti({ particleCount: 45, spread: 60, origin: { y: 0.55 } }); } catch {}
+              setIsSolving(false);
+              return;
+            }
+          } catch {}
+        }
+        const localFallback = solveProblemLocally(targetText || '', lang);
+        if (localFallback) {
+          setSolvedProblem(localFallback);
+          try { confetti({ particleCount: 45, spread: 60, origin: { y: 0.55 } }); } catch {}
+          setIsSolving(false);
+          return;
+        }
         const errData = await response.json().catch(() => ({}));
         setErrorMessage(errData.error || getTranslation('ocrFailedDesc', lang));
         setIsSolving(false);
         return;
       }
     } catch {
+      if (targetText) {
+        try {
+          const wexSol = WexAIEngine.solve(targetText, lang as any);
+          if (wexSol) {
+            setSolvedProblem(wexSolutionToAiSolution(wexSol, targetText, lang));
+            try { confetti({ particleCount: 45, spread: 60, origin: { y: 0.55 } }); } catch {}
+            setIsSolving(false);
+            return;
+          }
+        } catch {}
+      }
+      const localFallback = solveProblemLocally(targetText || '', lang);
+      if (localFallback) {
+        setSolvedProblem(localFallback);
+        try { confetti({ particleCount: 45, spread: 60, origin: { y: 0.55 } }); } catch {}
+        setIsSolving(false);
+        return;
+      }
       setErrorMessage(getTranslation('ocrFailedDesc', lang));
       setIsSolving(false);
       return;
     }
 
     setIsSolving(false);
+  };
+
+  // Quick Action AI prompt shortcuts
+  const handleQuickActionPrompt = (actionType: 'only_answer' | 'simple_explanation' | 'alternative_method' | 'practice_problem') => {
+    if (!solvedProblem) return;
+    let promptText = '';
+    if (actionType === 'only_answer') {
+      promptText = lang === 'uk' ? 'Надай тільки коротку чітку фінальну відповідь без зайвого тексту' : 'Предоставь только краткий чёткий финальный ответ без лишнего текста';
+    } else if (actionType === 'simple_explanation') {
+      promptText = lang === 'uk' ? 'Поясни розв\'язання максимально простими словами для учня 7 класу з наочними аналогіями' : 'Объясни решение максимально простыми словами для ученика 7 класса с наглядными аналогиями';
+    } else if (actionType === 'alternative_method') {
+      promptText = lang === 'uk' ? 'Розв\'яжи цю саму задачу іншим альтернативним способом (через інший закон або метод)' : 'Реши эту же задачу другим альтернативным способом (через другой закон или метод)';
+    } else if (actionType === 'practice_problem') {
+      promptText = lang === 'uk' ? 'Склади схожу тренувальну задачу з іншими числами на цю тему та розв\'яжи її' : 'Составь похожую тренировочную задачу с другими числами на эту тему и реши её';
+    }
+    solveProblemWithAi(lastSubmittedImage || undefined, promptText, lastSubmittedText || solvedProblem.problemStatement);
   };
 
   // Copy helper
@@ -1208,12 +1460,62 @@ export const PhotoMathModal: React.FC<PhotoMathModalProps> = ({
     });
     lines.push('');
     lines.push(`ВІДПОВІДЬ: ${solvedProblem.finalAnswer}`);
-    lines.push('\n[Розв\'язано через VexCalculator AI]');
+    lines.push('\n[Розв\'язано через WexCalculator AI]');
 
     handleCopyText(lines.join('\n'), 'full_solution');
   };
 
-  // Send single computation to VexCalculator
+  // Copy LaTeX code
+  const handleCopyLatex = () => {
+    if (!solvedProblem) return;
+    const l: string[] = [];
+    l.push(`% WexCalculator Academic Solution`);
+    l.push(`\\section*{${solvedProblem.subjectTitle}: ${solvedProblem.topic}}`);
+    l.push(`\\noindent\\textbf{Умова:} ${solvedProblem.problemStatement}\\\\[1em]`);
+    l.push(`\\textbf{Дано:}`);
+    l.push(`\\begin{itemize}`);
+    solvedProblem.givenData?.forEach(d => l.push(`  \\item ${d.symbol || d.label} = ${d.value}`));
+    l.push(`\\end{itemize}`);
+    if (solvedProblem.lawsAndFormulas?.length) {
+      l.push(`\\textbf{Формули:}`);
+      l.push(`\\begin{itemize}`);
+      solvedProblem.lawsAndFormulas.forEach(f => l.push(`  \\item ${f}`));
+      l.push(`\\end{itemize}`);
+    }
+    l.push(`\\textbf{Розв'язання:}`);
+    l.push(`\\begin{enumerate}`);
+    solvedProblem.solutionSteps.forEach(s => {
+      l.push(`  \\item \\textbf{${s.title}} -- ${s.explanation} \\\\`);
+      if (s.calculation) l.push(`        \\[ ${s.calculation} \\]`);
+    });
+    l.push(`\\end{enumerate}`);
+    l.push(`\\noindent\\textbf{Відповідь:} ${solvedProblem.finalAnswer}`);
+    handleCopyText(l.join('\n'), 'latex');
+  };
+
+  // Copy Markdown
+  const handleCopyMarkdown = () => {
+    if (!solvedProblem) return;
+    const m: string[] = [];
+    m.push(`## ${solvedProblem.subjectTitle}: ${solvedProblem.topic}`);
+    m.push(`> **Умова:** ${solvedProblem.problemStatement}\n`);
+    m.push(`### Дано:`);
+    solvedProblem.givenData?.forEach(d => m.push(`- **${d.symbol || d.label}:** \`${d.value}\``));
+    if (solvedProblem.lawsAndFormulas?.length) {
+      m.push(`\n### Формули:`);
+      solvedProblem.lawsAndFormulas.forEach(f => m.push(`- \`${f}\``));
+    }
+    m.push(`\n### Розв'язання:`);
+    solvedProblem.solutionSteps.forEach(s => {
+      m.push(`${s.stepNumber}. **${s.title}**`);
+      m.push(`   ${s.explanation}`);
+      if (s.calculation) m.push(`   \`${s.calculation}\``);
+    });
+    m.push(`\n**Відповідь:** \`${solvedProblem.finalAnswer}\``);
+    handleCopyText(m.join('\n'), 'markdown');
+  };
+
+  // Send single computation to WexCalculator
   const handleSendToCalculator = (comp: ProblemComputationItem) => {
     const mode = solvedProblem?.computationBlock.recommendedMode || 'standard';
     const effectiveMode = mode === 'graphs' ? 'standard' : mode;
@@ -1225,7 +1527,7 @@ export const PhotoMathModal: React.FC<PhotoMathModalProps> = ({
     onClose();
   };
 
-  // Send primary expression to VexCalculator
+  // Send primary expression to WexCalculator
   const handleLoadPrimaryToCalculator = () => {
     if (!solvedProblem) return;
     const expr = solvedProblem.computationBlock.primaryExpression;
@@ -1277,8 +1579,12 @@ export const PhotoMathModal: React.FC<PhotoMathModalProps> = ({
                 <h3 className="font-bold text-sm sm:text-base tracking-tight">
                   {getTranslation('aiProblemSolver', lang)}
                 </h3>
-                <span className="px-1.5 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider bg-gradient-to-r from-blue-600 to-purple-600 text-white shadow-2xs">
-                  Gemini 3.8 Flash Vision
+                <span className="px-1.5 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider bg-gradient-to-r from-emerald-600 to-teal-600 text-white shadow-2xs flex items-center gap-1">
+                  <Zap className="w-3 h-3 text-amber-300" />
+                  <span>WexAI 0ms Engine</span>
+                </span>
+                <span className="hidden sm:inline-block px-1.5 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider bg-gradient-to-r from-blue-600 to-purple-600 text-white shadow-2xs">
+                  Gemini Flash Vision
                 </span>
               </div>
               <p className="text-[11px] text-slate-400">
@@ -1343,6 +1649,17 @@ export const PhotoMathModal: React.FC<PhotoMathModalProps> = ({
           >
             <Sparkles className="w-3.5 h-3.5 text-amber-400" />
             <span>{getTranslation('samplePhotos', lang)}</span>
+          </button>
+          <button
+            onClick={() => setTab('bank1000')}
+            className={`flex-1 py-1.5 rounded-lg transition-all flex items-center justify-center gap-1.5 ${
+              tab === 'bank1000'
+                ? 'bg-gradient-to-r from-emerald-600 to-teal-600 text-white shadow-xs'
+                : 'text-slate-400 hover:text-white'
+            }`}
+          >
+            <BookOpen className="w-3.5 h-3.5 text-emerald-400" />
+            <span className="font-semibold">{lang === 'uk' ? 'Банк 1000+ задач' : lang === 'en' ? '1000+ Problems' : 'Банк 1000+ задач'}</span>
           </button>
         </div>
 
@@ -1439,16 +1756,139 @@ export const PhotoMathModal: React.FC<PhotoMathModalProps> = ({
             </div>
           )}
 
-          {/* CAMERA TAB: High-Definition Viewfinder with OCR Framing */}
+          {/* CAMERA TAB: High-Definition Viewfinder with OCR Framing & Fixation */}
           {tab === 'camera' && (
             <div className="space-y-3 flex flex-col items-center">
               <div className="relative w-full max-w-lg h-72 sm:h-80 rounded-2xl overflow-hidden bg-black border border-slate-700 flex items-center justify-center shadow-xl">
-                {/* Live video or captured preview */}
+                {/* Fallback Viewfinder if Camera is blocked or unavailable */}
+                {cameraBlocked ? (
+                  <div className="absolute inset-0 p-4 bg-slate-900/95 flex flex-col items-center justify-center text-center z-20 space-y-3">
+                    <div className="w-10 h-10 rounded-full bg-amber-500/20 text-amber-400 flex items-center justify-center border border-amber-500/30">
+                      <AlertCircle className="w-5 h-5" />
+                    </div>
+                    <div>
+                      <div className="text-xs font-bold text-white mb-1">
+                        {getTranslation('cameraFallbackTitle', lang)}
+                      </div>
+                      <div className="text-[11px] text-slate-400 max-w-xs">
+                        {getTranslation('cameraFallbackDesc', lang)}
+                      </div>
+                    </div>
+
+                    {/* Quick Test Notebook Cards */}
+                    <div className="grid grid-cols-2 gap-2 w-full max-w-xs">
+                      <button
+                        onClick={() => {
+                          const s = localizedSamples[0];
+                          if (s) {
+                            setSolvedProblem(s);
+                            setSelectedImage(null);
+                            setCapturedPreview(null);
+                          }
+                        }}
+                        className="p-2 rounded-xl bg-slate-800 hover:bg-slate-700 border border-slate-700 text-left transition-all group"
+                      >
+                        <div className="text-[10px] font-bold text-amber-400 flex items-center gap-1">
+                          <Zap className="w-3 h-3" />
+                          <span>Фізика</span>
+                        </div>
+                        <div className="text-[9px] text-slate-300 font-mono truncate mt-0.5">m=4кг, v=54км/г</div>
+                      </button>
+
+                      <button
+                        onClick={() => {
+                          const s = localizedSamples[4] || localizedSamples[0];
+                          if (s) {
+                            setSolvedProblem(s);
+                            setSelectedImage(null);
+                            setCapturedPreview(null);
+                          }
+                        }}
+                        className="p-2 rounded-xl bg-slate-800 hover:bg-slate-700 border border-slate-700 text-left transition-all group"
+                      >
+                        <div className="text-[10px] font-bold text-blue-400 flex items-center gap-1">
+                          <Sparkles className="w-3 h-3" />
+                          <span>Алгебра</span>
+                        </div>
+                        <div className="text-[9px] text-slate-300 font-mono truncate mt-0.5">x² - 6x + 8 = 0</div>
+                      </button>
+
+                      <button
+                        onClick={() => {
+                          const s = localizedSamples[2] || localizedSamples[0];
+                          if (s) {
+                            setSolvedProblem(s);
+                            setSelectedImage(null);
+                            setCapturedPreview(null);
+                          }
+                        }}
+                        className="p-2 rounded-xl bg-slate-800 hover:bg-slate-700 border border-slate-700 text-left transition-all group"
+                      >
+                        <div className="text-[10px] font-bold text-emerald-400 flex items-center gap-1">
+                          <Compass className="w-3 h-3" />
+                          <span>Геометрія</span>
+                        </div>
+                        <div className="text-[9px] text-slate-300 font-mono truncate mt-0.5">a=9, b=12, c=15</div>
+                      </button>
+
+                      <button
+                        onClick={() => {
+                          const s = localizedSamples[1] || localizedSamples[0];
+                          if (s) {
+                            setSolvedProblem(s);
+                            setSelectedImage(null);
+                            setCapturedPreview(null);
+                          }
+                        }}
+                        className="p-2 rounded-xl bg-slate-800 hover:bg-slate-700 border border-slate-700 text-left transition-all group"
+                      >
+                        <div className="text-[10px] font-bold text-teal-400 flex items-center gap-1">
+                          <Atom className="w-3 h-3" />
+                          <span>Хімія</span>
+                        </div>
+                        <div className="text-[9px] text-slate-300 font-mono truncate mt-0.5">M(H₂SO₄)</div>
+                      </button>
+                    </div>
+
+                    {/* Actions: Retry or Upload file */}
+                    <div className="flex items-center gap-2 pt-1">
+                      <button
+                        onClick={startCamera}
+                        className="px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-semibold flex items-center gap-1.5 border border-slate-700 transition-all"
+                      >
+                        <RefreshCw className="w-3.5 h-3.5" />
+                        <span>{getTranslation('retryBtn', lang)}</span>
+                      </button>
+                      <label className="px-3 py-1.5 rounded-lg bg-blue-600 hover:bg-blue-500 text-white text-xs font-semibold flex items-center gap-1.5 cursor-pointer shadow-sm transition-all">
+                        <Upload className="w-3.5 h-3.5" />
+                        <span>{getTranslation('uploadPhoto', lang)}</span>
+                        <input
+                          type="file"
+                          accept="image/*"
+                          onChange={handleFileUpload}
+                          className="hidden"
+                        />
+                      </label>
+                    </div>
+                  </div>
+                ) : null}
+
+                {/* Viewfinder Media: Captured image, Frozen frame, or Live video */}
                 {capturedPreview ? (
                   <img
                     src={capturedPreview}
                     alt="Captured photo"
                     className="w-full h-full object-cover"
+                  />
+                ) : isFrozen && frozenPreview ? (
+                  <img
+                    src={frozenPreview}
+                    alt="Frozen camera frame"
+                    className="w-full h-full object-cover"
+                    style={{
+                      transform: `scale(${zoomLevel})`,
+                      transition: 'transform 0.2s ease',
+                    }}
                   />
                 ) : (
                   <video
@@ -1457,6 +1897,16 @@ export const PhotoMathModal: React.FC<PhotoMathModalProps> = ({
                     playsInline
                     muted
                     className="w-full h-full object-cover"
+                    style={{
+                      transform: `scale(${zoomLevel})`,
+                      filter:
+                        contrastMode === 'bw'
+                          ? 'grayscale(100%) contrast(175%) brightness(105%)'
+                          : contrastMode === 'notebook'
+                          ? 'contrast(140%) saturate(80%) brightness(102%)'
+                          : 'none',
+                      transition: 'transform 0.2s ease, filter 0.2s ease',
+                    }}
                   />
                 )}
 
@@ -1466,7 +1916,7 @@ export const PhotoMathModal: React.FC<PhotoMathModalProps> = ({
                 )}
 
                 {/* Framing Overlay & Optical Guides */}
-                {!capturedPreview && (
+                {!capturedPreview && !cameraBlocked && (
                   <>
                     {/* Viewfinder Target Box */}
                     <div className="absolute inset-6 sm:inset-8 border border-white/40 rounded-xl pointer-events-none flex flex-col justify-between p-2">
@@ -1475,8 +1925,15 @@ export const PhotoMathModal: React.FC<PhotoMathModalProps> = ({
                         <div className="w-4 h-4 border-t-2 border-r-2 border-cyan-400 rounded-tr-sm" />
                       </div>
                       <div className="flex items-center justify-center">
-                        <span className="text-[11px] font-mono bg-black/70 px-2.5 py-1 rounded-full text-white/90 shadow-md backdrop-blur-xs">
-                          {getTranslation('aimCameraAtProblem', lang)}
+                        <span className="text-[11px] font-mono bg-black/75 px-2.5 py-1 rounded-full text-white/90 shadow-md backdrop-blur-xs flex items-center gap-1.5">
+                          {isFrozen ? (
+                            <>
+                              <span className="w-2 h-2 rounded-full bg-cyan-400 animate-pulse" />
+                              <span>{getTranslation('freezeCamera', lang)}</span>
+                            </>
+                          ) : (
+                            getTranslation('aimCameraAtProblem', lang)
+                          )}
                         </span>
                       </div>
                       <div className="flex justify-between">
@@ -1485,30 +1942,71 @@ export const PhotoMathModal: React.FC<PhotoMathModalProps> = ({
                       </div>
                     </div>
 
-                    {/* Top status bar inside viewfinder */}
+                    {/* Top status & camera controls toolbar inside viewfinder */}
                     <div className="absolute top-3 left-3 right-3 flex items-center justify-between text-xs pointer-events-auto">
-                      <span className="px-2 py-0.5 rounded-full bg-black/60 backdrop-blur-md text-emerald-400 font-mono text-[10px] font-bold border border-emerald-500/30">
-                        {cameraResBadge}
-                      </span>
+                      <div className="flex items-center gap-1.5">
+                        <span className="px-2 py-0.5 rounded-full bg-black/70 backdrop-blur-md text-emerald-400 font-mono text-[10px] font-bold border border-emerald-500/30">
+                          {cameraResBadge}
+                        </span>
+                        {isFrozen && (
+                          <span className="px-2 py-0.5 rounded-full bg-cyan-500/30 backdrop-blur-md text-cyan-300 font-mono text-[10px] font-bold border border-cyan-400/40">
+                            FROZEN
+                          </span>
+                        )}
+                      </div>
 
                       <div className="flex items-center gap-1.5">
+                        {/* Zoom Pill Button */}
+                        <button
+                          onClick={handleCycleZoom}
+                          className="px-2 py-1 rounded-full bg-black/70 hover:bg-black/90 text-white font-mono text-[10px] font-bold border border-white/20 backdrop-blur-md transition-all flex items-center gap-1"
+                          title={getTranslation('digitalZoom', lang)}
+                        >
+                          <ZoomIn className="w-3 h-3 text-cyan-400" />
+                          <span>{zoomLevel}x</span>
+                        </button>
+
+                        {/* Contrast Mode Toggle Button */}
+                        <button
+                          onClick={handleCycleContrast}
+                          className={`p-1.5 rounded-full backdrop-blur-md transition-all border ${
+                            contrastMode !== 'normal'
+                              ? 'bg-blue-600/90 text-white border-blue-400'
+                              : 'bg-black/70 text-slate-300 hover:text-white border-white/20 hover:bg-black/90'
+                          }`}
+                          title={
+                            contrastMode === 'normal'
+                              ? getTranslation('contrastModeNormal', lang)
+                              : contrastMode === 'notebook'
+                              ? getTranslation('contrastModeNotebook', lang)
+                              : getTranslation('contrastModeBw', lang)
+                          }
+                        >
+                          <Contrast className="w-3.5 h-3.5" />
+                        </button>
+
+                        {/* Torch/Flash Toggle (if available) */}
                         {hasTorch && (
                           <button
                             onClick={handleToggleTorch}
-                            className={`p-1.5 rounded-full backdrop-blur-md transition-all ${
-                              torchOn ? 'bg-amber-500 text-black' : 'bg-black/60 text-white hover:bg-black/80'
+                            className={`p-1.5 rounded-full backdrop-blur-md transition-all border ${
+                              torchOn
+                                ? 'bg-amber-500 text-black border-amber-400'
+                                : 'bg-black/70 text-white hover:bg-black/90 border-white/20'
                             }`}
                             title={getTranslation('torchOn', lang)}
                           >
-                            {torchOn ? <Zap className="w-4 h-4" /> : <ZapOff className="w-4 h-4" />}
+                            {torchOn ? <Zap className="w-3.5 h-3.5" /> : <ZapOff className="w-3.5 h-3.5" />}
                           </button>
                         )}
+
+                        {/* Switch Front/Rear Facing Camera */}
                         <button
                           onClick={handleToggleFacingMode}
-                          className="p-1.5 rounded-full bg-black/60 text-white hover:bg-black/80 backdrop-blur-md transition-all"
+                          className="p-1.5 rounded-full bg-black/70 text-white hover:bg-black/90 border border-white/20 backdrop-blur-md transition-all"
                           title={getTranslation('switchCamera', lang)}
                         >
-                          <RefreshCw className="w-4 h-4" />
+                          <RefreshCw className="w-3.5 h-3.5" />
                         </button>
                       </div>
                     </div>
@@ -1527,8 +2025,8 @@ export const PhotoMathModal: React.FC<PhotoMathModalProps> = ({
                 )}
               </div>
 
-              {/* Camera Trigger Buttons */}
-              <div className="flex items-center gap-3">
+              {/* Camera Trigger & Fixation Action Buttons */}
+              <div className="flex items-center gap-2.5 flex-wrap justify-center">
                 {capturedPreview ? (
                   <>
                     <button
@@ -1547,15 +2045,47 @@ export const PhotoMathModal: React.FC<PhotoMathModalProps> = ({
                       <span>{getTranslation('confirmAndSolvePhoto', lang)}</span>
                     </button>
                   </>
+                ) : isFrozen ? (
+                  <>
+                    <button
+                      onClick={handleToggleFreeze}
+                      className="px-4 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 font-semibold text-xs flex items-center gap-1.5 border border-slate-700 transition-all"
+                    >
+                      <Play className="w-3.5 h-3.5 text-emerald-400" />
+                      <span>{getTranslation('unfreezeCamera', lang)}</span>
+                    </button>
+                    <button
+                      onClick={snapCamera}
+                      disabled={isSolving}
+                      className="px-6 py-2.5 rounded-full bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-400 hover:to-blue-500 text-white font-bold text-xs flex items-center gap-2 shadow-lg shadow-cyan-500/25 active:scale-95 transition-all"
+                    >
+                      <Sparkles className="w-4 h-4 text-amber-300" />
+                      <span>{getTranslation('confirmAndSolvePhoto', lang)}</span>
+                    </button>
+                  </>
                 ) : (
-                  <button
-                    onClick={snapCamera}
-                    disabled={isSolving}
-                    className="px-6 py-2.5 rounded-full bg-gradient-to-r from-blue-600 to-cyan-500 hover:from-blue-500 hover:to-cyan-400 text-white font-bold text-xs flex items-center gap-2 shadow-lg shadow-blue-500/25 active:scale-95 transition-all"
-                  >
-                    <Scan className="w-4 h-4" />
-                    <span>{getTranslation('takePhotoWithCam', lang)}</span>
-                  </button>
+                  <>
+                    {/* Freeze frame button (Фіксація камери) */}
+                    <button
+                      onClick={handleToggleFreeze}
+                      disabled={cameraBlocked}
+                      className="px-4 py-2 rounded-xl bg-slate-800/80 hover:bg-slate-700 text-slate-200 font-semibold text-xs flex items-center gap-1.5 border border-slate-700 transition-all disabled:opacity-50"
+                      title={getTranslation('freezeCamera', lang)}
+                    >
+                      <Pause className="w-3.5 h-3.5 text-cyan-400" />
+                      <span>{getTranslation('freezeCamera', lang)}</span>
+                    </button>
+
+                    {/* Shutter snapshot & instant solve */}
+                    <button
+                      onClick={snapCamera}
+                      disabled={isSolving || cameraBlocked}
+                      className="px-6 py-2.5 rounded-full bg-gradient-to-r from-blue-600 to-cyan-500 hover:from-blue-500 hover:to-cyan-400 text-white font-bold text-xs flex items-center gap-2 shadow-lg shadow-blue-500/25 active:scale-95 transition-all disabled:opacity-50"
+                    >
+                      <Scan className="w-4 h-4" />
+                      <span>{getTranslation('takePhotoWithCam', lang)}</span>
+                    </button>
+                  </>
                 )}
               </div>
             </div>
@@ -1658,6 +2188,209 @@ export const PhotoMathModal: React.FC<PhotoMathModalProps> = ({
             </div>
           )}
 
+          {/* BANK 1000+ TAB: Solvable problems catalogue across disciplines */}
+          {tab === 'bank1000' && (
+            <div className="space-y-3">
+              {/* Top Search & Filter Bar */}
+              <div
+                className={`p-3 rounded-2xl border space-y-2.5 ${
+                  isDark ? 'bg-slate-800/60 border-slate-700/80' : 'bg-slate-50 border-slate-200'
+                }`}
+              >
+                <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
+                  <div className="relative flex-1">
+                    <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
+                    <input
+                      type="text"
+                      value={bankSearch}
+                      onChange={(e) => setBankSearch(e.target.value)}
+                      placeholder={
+                        lang === 'uk'
+                          ? 'Пошук серед 1000+ задач (назва, закон, умова, номер)...'
+                          : lang === 'en'
+                          ? 'Search 1000+ problems by topic, formula, text, or #...'
+                          : 'Поиск среди 1000+ задач (название, закон, условие, номер)...'
+                      }
+                      className="w-full pl-9 pr-8 py-2 rounded-xl bg-slate-900 border border-slate-700 text-slate-100 placeholder-slate-500 text-xs focus:outline-hidden focus:border-emerald-500 font-sans"
+                    />
+                    {bankSearch && (
+                      <button
+                        onClick={() => setBankSearch('')}
+                        className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-white text-xs"
+                      >
+                        ✕
+                      </button>
+                    )}
+                  </div>
+
+                  {/* Random Problem Button */}
+                  <button
+                    onClick={() => {
+                      const rand = WexProblemBankService.getRandomProblem();
+                      const sol = bankProblemToAiSolution(rand, lang);
+                      setSolvedProblem(sol);
+                      setSelectedImage(null);
+                      setCapturedPreview(null);
+                      try { confetti({ particleCount: 50, spread: 70, origin: { y: 0.6 } }); } catch {}
+                    }}
+                    className="px-3.5 py-2 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white font-bold text-xs flex items-center justify-center gap-1.5 shadow-md active:scale-95 transition-all cursor-pointer shrink-0"
+                    title={lang === 'uk' ? 'Вибрати випадкову задачу з 1000' : 'Pick random problem from 1000'}
+                  >
+                    <Sparkles className="w-3.5 h-3.5 text-amber-300" />
+                    <span>{lang === 'uk' ? 'Випадкова задача' : lang === 'en' ? 'Random Problem' : 'Случайная задача'}</span>
+                  </button>
+                </div>
+
+                {/* Filter Pills */}
+                <div className="flex flex-wrap items-center justify-between gap-2 pt-1 border-t border-slate-700/60">
+                  {/* Subject selector */}
+                  <div className="flex flex-wrap items-center gap-1">
+                    {[
+                      { id: 'all', labelUk: 'Всі предмети', labelRu: 'Все предметы', labelEn: 'All' },
+                      { id: 'physics', labelUk: 'Фізика', labelRu: 'Физика', labelEn: 'Physics' },
+                      { id: 'algebra', labelUk: 'Алгебра', labelRu: 'Алгебра', labelEn: 'Algebra' },
+                      { id: 'geometry', labelUk: 'Геометрія', labelRu: 'Геометрия', labelEn: 'Geometry' },
+                      { id: 'chemistry', labelUk: 'Хімія', labelRu: 'Химия', labelEn: 'Chemistry' },
+                      { id: 'astro', labelUk: 'Астрофізика', labelRu: 'Астрофизика', labelEn: 'Astro' },
+                      { id: 'finance', labelUk: 'Фінанси', labelRu: 'Финансы', labelEn: 'Finance' },
+                    ].map((s) => (
+                      <button
+                        key={s.id}
+                        onClick={() => setBankSubject(s.id)}
+                        className={`px-2 py-1 rounded-md text-[10px] font-semibold transition-all cursor-pointer ${
+                          bankSubject === s.id
+                            ? 'bg-emerald-600 text-white shadow-xs'
+                            : 'bg-slate-800 text-slate-300 hover:text-white border border-slate-700/80'
+                        }`}
+                      >
+                        {lang === 'uk' ? s.labelUk : lang === 'en' ? s.labelEn : s.labelRu}
+                      </button>
+                    ))}
+                  </div>
+
+                  {/* Difficulty selector */}
+                  <div className="flex items-center gap-1">
+                    {[
+                      { id: 'all', labelUk: 'Всі рівні', labelRu: 'Все уровни', labelEn: 'All Levels' },
+                      { id: 'basic', labelUk: 'Базовий', labelRu: 'Базовый', labelEn: 'Basic' },
+                      { id: 'medium', labelUk: 'Середній', labelRu: 'Средний', labelEn: 'Medium' },
+                      { id: 'advanced', labelUk: 'Поглиблений', labelRu: 'Углубленный', labelEn: 'Advanced' },
+                    ].map((d) => (
+                      <button
+                        key={d.id}
+                        onClick={() => setBankDifficulty(d.id)}
+                        className={`px-1.5 py-0.5 rounded text-[9px] font-medium transition-all cursor-pointer ${
+                          bankDifficulty === d.id
+                            ? 'bg-teal-600 text-white'
+                            : 'bg-slate-800/80 text-slate-400 hover:text-white border border-slate-700/60'
+                        }`}
+                      >
+                        {lang === 'uk' ? d.labelUk : lang === 'en' ? d.labelEn : d.labelRu}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                <div className="text-[10px] text-slate-400 font-mono flex items-center justify-between pt-0.5">
+                  <span>
+                    {lang === 'uk'
+                      ? `Відображено ${Math.min(filteredBankProblems.length, 60)} з ${filteredBankProblems.length} знайдених (Всього в базі: ${TOTAL_PROBLEMS_COUNT})`
+                      : `Showing ${Math.min(filteredBankProblems.length, 60)} of ${filteredBankProblems.length} found (Total in bank: ${TOTAL_PROBLEMS_COUNT})`}
+                  </span>
+                  <span className="text-emerald-400 font-semibold flex items-center gap-1">
+                    <Zap className="w-3 h-3" />
+                    <span>WexAI 100% Offline (0ms)</span>
+                  </span>
+                </div>
+              </div>
+
+              {/* Problems Grid */}
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-2.5 max-h-[460px] overflow-y-auto pr-1">
+                {filteredBankProblems.slice(0, 60).map((problem) => {
+                  const isSelected = solvedProblem?.id === problem.id;
+                  const problemTitle = lang === 'uk' ? problem.titleUk : lang === 'en' ? problem.titleEn : problem.titleRu;
+                  const problemCond = lang === 'uk' ? problem.conditionUk : lang === 'en' ? problem.conditionEn : problem.conditionRu;
+
+                  return (
+                    <div
+                      key={problem.id}
+                      onClick={() => {
+                        const sol = bankProblemToAiSolution(problem, lang);
+                        setSolvedProblem(sol);
+                        setSelectedImage(null);
+                        setCapturedPreview(null);
+                      }}
+                      className={`p-3 rounded-xl border cursor-pointer transition-all hover:scale-[1.01] flex flex-col justify-between group ${
+                        isSelected
+                          ? 'ring-2 ring-emerald-500 bg-emerald-500/10 border-emerald-500 shadow-lg'
+                          : isDark
+                          ? 'bg-slate-800/70 border-slate-700/80 hover:bg-slate-800'
+                          : 'bg-slate-50 border-slate-200 hover:bg-slate-100'
+                      }`}
+                    >
+                      <div>
+                        {/* Header badges */}
+                        <div className="flex items-center justify-between gap-1 mb-1.5">
+                          <span className="px-1.5 py-0.5 rounded text-[9px] font-mono font-bold bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">
+                            #{problem.num}
+                          </span>
+                          <div className="flex items-center gap-1">
+                            <span className="px-1.5 py-0.5 rounded text-[9px] font-semibold bg-slate-700/60 text-slate-300">
+                              {problem.category}
+                            </span>
+                            <span
+                              className={`px-1.5 py-0.5 rounded text-[9px] font-bold ${
+                                problem.difficulty === 'basic'
+                                  ? 'bg-green-500/20 text-green-300'
+                                  : problem.difficulty === 'medium'
+                                  ? 'bg-blue-500/20 text-blue-300'
+                                  : 'bg-purple-500/20 text-purple-300'
+                              }`}
+                            >
+                              {problem.difficulty}
+                            </span>
+                          </div>
+                        </div>
+
+                        {/* Title */}
+                        <div className="text-xs font-bold text-slate-100 leading-snug line-clamp-1 group-hover:text-emerald-300 transition-colors">
+                          {problemTitle}
+                        </div>
+
+                        {/* Condition snippet */}
+                        <p className="text-[11px] text-slate-300/90 mt-1 line-clamp-2 leading-relaxed">
+                          {problemCond}
+                        </p>
+                      </div>
+
+                      {/* Card Footer Button */}
+                      <div className="mt-2.5 pt-2 border-t border-slate-700/50 flex items-center justify-between">
+                        <span className="text-[10px] font-mono text-emerald-400 font-semibold truncate max-w-[120px]">
+                          {problem.formulas[0] || 'Формула'}
+                        </span>
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            const sol = bankProblemToAiSolution(problem, lang);
+                            setSolvedProblem(sol);
+                            setSelectedImage(null);
+                            setCapturedPreview(null);
+                            try { confetti({ particleCount: 40, spread: 60, origin: { y: 0.6 } }); } catch {}
+                          }}
+                          className="px-2.5 py-1 rounded-lg bg-emerald-600/90 hover:bg-emerald-500 text-white font-bold text-[10px] flex items-center gap-1 shadow-xs transition-all cursor-pointer"
+                        >
+                          <Zap className="w-3 h-3 text-amber-300" />
+                          <span>{lang === 'uk' ? 'Розв\'язати (0ms)' : 'Solve (0ms)'}</span>
+                        </button>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+
           {/* Real-time Error Notification with One-Click Retry */}
           {errorMessage && (
             <div className="p-3.5 rounded-xl bg-rose-500/10 border-2 border-rose-500/30 text-rose-300 text-xs sm:text-sm flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-lg">
@@ -1708,8 +2441,59 @@ export const PhotoMathModal: React.FC<PhotoMathModalProps> = ({
                     </span>
                   )}
                   <button
+                    onClick={handleToggleSpeech}
+                    className={`px-2.5 py-1 rounded-lg text-xs font-medium border flex items-center gap-1.5 transition-all shadow-xs cursor-pointer ${
+                      isSpeaking
+                        ? 'bg-rose-600/30 text-rose-300 border-rose-500/50 animate-pulse'
+                        : 'bg-slate-700/80 hover:bg-slate-600 text-slate-200 border-slate-600'
+                    }`}
+                    title={isSpeaking ? 'Зупинити озвучення' : 'Озвучити розвʼязання голосом'}
+                  >
+                    {isSpeaking ? <VolumeX className="w-3.5 h-3.5 text-rose-400" /> : <Volume2 className="w-3.5 h-3.5 text-cyan-400" />}
+                    <span>{isSpeaking ? (lang === 'uk' ? 'Зупинити' : 'Остановить') : (lang === 'uk' ? 'Озвучити' : 'Озвучить')}</span>
+                  </button>
+                  <button
+                    onClick={handleCopyLatex}
+                    className="px-2 py-1 rounded-lg text-xs font-medium bg-slate-700/80 hover:bg-slate-600 text-slate-200 border border-slate-600 flex items-center gap-1 transition-colors shadow-xs cursor-pointer"
+                    title="Копіювати як LaTeX"
+                  >
+                    <span>LaTeX</span>
+                    {copiedItemId === 'latex' && <Check className="w-3 h-3 text-emerald-400" />}
+                  </button>
+                  <button
+                    onClick={handleCopyMarkdown}
+                    className="px-2 py-1 rounded-lg text-xs font-medium bg-slate-700/80 hover:bg-slate-600 text-slate-200 border border-slate-600 flex items-center gap-1 transition-colors shadow-xs cursor-pointer"
+                    title="Копіювати як Markdown"
+                  >
+                    <span>MD</span>
+                    {copiedItemId === 'markdown' && <Check className="w-3 h-3 text-emerald-400" />}
+                  </button>
+                  <button
+                    onClick={() => setShowFormulas(!showFormulas)}
+                    className={`px-2.5 py-1 rounded-lg text-xs font-medium border flex items-center gap-1.5 transition-colors shadow-xs cursor-pointer ${
+                      showFormulas ? 'bg-indigo-600 text-white border-indigo-500' : 'bg-slate-700/80 hover:bg-slate-600 text-slate-200 border-slate-600'
+                    }`}
+                    title="Довідник формул"
+                  >
+                    <BookOpen className="w-3.5 h-3.5 text-indigo-400" />
+                    <span>{lang === 'uk' ? 'Формули' : 'Формулы'}</span>
+                  </button>
+                  <button
+                    onClick={() => {
+                      setShowQuiz(!showQuiz);
+                      setQuizSelected(null);
+                    }}
+                    className={`px-2.5 py-1 rounded-lg text-xs font-medium border flex items-center gap-1.5 transition-colors shadow-xs cursor-pointer ${
+                      showQuiz ? 'bg-amber-600 text-white border-amber-500' : 'bg-slate-700/80 hover:bg-slate-600 text-slate-200 border-slate-600'
+                    }`}
+                    title="Міні-тест на розуміння"
+                  >
+                    <HelpCircle className="w-3.5 h-3.5 text-amber-400" />
+                    <span>{lang === 'uk' ? 'Тест' : 'Тест'}</span>
+                  </button>
+                  <button
                     onClick={handleCopyFullAcademicSolution}
-                    className="px-2.5 py-1 rounded-lg text-xs font-medium bg-slate-700/80 hover:bg-slate-600 text-slate-200 border border-slate-600 flex items-center gap-1.5 transition-colors shadow-xs"
+                    className="px-2.5 py-1 rounded-lg text-xs font-medium bg-slate-700/80 hover:bg-slate-600 text-slate-200 border border-slate-600 flex items-center gap-1.5 transition-colors shadow-xs cursor-pointer"
                     title={getTranslation('copyFormulaRow', lang)}
                   >
                     <Copy className="w-3.5 h-3.5" />
@@ -1722,6 +2506,101 @@ export const PhotoMathModal: React.FC<PhotoMathModalProps> = ({
                 </div>
               </div>
 
+              {/* Formula Cheatsheet Drawer */}
+              {showFormulas && (
+                <div className="p-3.5 rounded-xl bg-slate-800/90 border border-indigo-500/40 space-y-2 animate-in fade-in">
+                  <div className="flex items-center justify-between text-xs font-bold text-indigo-300">
+                    <span className="flex items-center gap-1.5">
+                      <BookOpen className="w-4 h-4 text-indigo-400" />
+                      <span>{lang === 'uk' ? 'Довідник ключових формул (STEM)' : 'Справочник ключевых формул (STEM)'}</span>
+                    </span>
+                    <button onClick={() => setShowFormulas(false)} className="text-slate-400 hover:text-white">✕</button>
+                  </div>
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 text-[11px] font-mono">
+                    <div className="p-2 rounded bg-slate-900 border border-slate-700">
+                      <span className="text-amber-400 font-bold block mb-1">Фізика</span>
+                      <div>• Ek = (m·v²)/2</div>
+                      <div>• A = F·s·cos(α) = ΔEk</div>
+                      <div>• P = A / t = F·v</div>
+                      <div>• F = m·a | F_тяж = m·g</div>
+                      <div>• p = m·v | I = U / R</div>
+                    </div>
+                    <div className="p-2 rounded bg-slate-900 border border-slate-700">
+                      <span className="text-cyan-400 font-bold block mb-1">Геометрія</span>
+                      <div>• c² = a² + b² (Піфагор)</div>
+                      <div>• S = (a·b)/2 (прямокутн.)</div>
+                      <div>• S = π·r² | C = 2·π·r</div>
+                      <div>• V_кулі = (4/3)·π·r³</div>
+                      <div>• sin²α + cos²α = 1</div>
+                    </div>
+                    <div className="p-2 rounded bg-slate-900 border border-slate-700">
+                      <span className="text-emerald-400 font-bold block mb-1">Хімія та Алгебра</span>
+                      <div>• n = m / M = V / V_m</div>
+                      <div>• P·V = n·R·T</div>
+                      <div>• D = b² - 4·a·c</div>
+                      <div>• x = (-b ± √D) / (2·a)</div>
+                      <div>• S = S₀·(1 + r/100)ⁿ</div>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* Interactive Quiz / Self-Test Card */}
+              {showQuiz && (
+                <div className="p-3.5 rounded-xl bg-slate-800/90 border border-amber-500/40 space-y-3 animate-in fade-in font-sans">
+                  <div className="flex items-center justify-between text-xs font-bold text-amber-300">
+                    <span className="flex items-center gap-1.5">
+                      <HelpCircle className="w-4 h-4 text-amber-400" />
+                      <span>{lang === 'uk' ? 'Міні-тест на розуміння цієї задачі' : 'Мини-тест на понимание этой задачи'}</span>
+                    </span>
+                    <button onClick={() => setShowQuiz(false)} className="text-slate-400 hover:text-white">✕</button>
+                  </div>
+                  <div className="text-xs text-slate-200 font-medium">
+                    {lang === 'uk'
+                      ? `Питання: Якщо швидкість тіла збільшити у 2 рази, як зміниться його кінетична енергія Ek?`
+                      : `Вопрос: Если скорость тела увеличить в 2 раза, как изменится его кинетическая энергия Ek?`}
+                  </div>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs">
+                    {[
+                      { id: 0, text: lang === 'uk' ? 'Збільшиться у 2 рази' : 'Увеличится в 2 раза', correct: false },
+                      { id: 1, text: lang === 'uk' ? 'Збільшиться у 4 рази (квадратична залежність)' : 'Увеличится в 4 раза (квадратичная зависимость)', correct: true },
+                      { id: 2, text: lang === 'uk' ? 'Не зміниться' : 'Не изменится', correct: false },
+                      { id: 3, text: lang === 'uk' ? 'Зменшиться у 2 рази' : 'Уменьшится в 2 раза', correct: false },
+                    ].map((opt) => {
+                      const isChosen = quizSelected === opt.id;
+                      let btnStyle = 'bg-slate-900 border-slate-700 text-slate-300 hover:border-slate-500';
+                      if (isChosen) {
+                        btnStyle = opt.correct
+                          ? 'bg-emerald-600/30 border-emerald-500 text-emerald-300 font-bold'
+                          : 'bg-rose-600/30 border-rose-500 text-rose-300 font-bold';
+                      }
+                      return (
+                        <button
+                          key={opt.id}
+                          onClick={() => {
+                            setQuizSelected(opt.id);
+                            if (opt.correct) {
+                              try { confetti({ particleCount: 30, spread: 50 }); } catch {}
+                            }
+                          }}
+                          className={`p-2.5 rounded-lg border text-left transition-all cursor-pointer flex items-center justify-between ${btnStyle}`}
+                        >
+                          <span>{opt.text}</span>
+                          {isChosen && opt.correct && <CheckCircle2 className="w-4 h-4 text-emerald-400" />}
+                        </button>
+                      );
+                    })}
+                  </div>
+                  {quizSelected !== null && (
+                    <div className="text-[11px] font-medium text-slate-300 p-2 rounded bg-slate-900/80 border border-slate-700">
+                      💡 {lang === 'uk'
+                        ? 'Пояснення: Оскільки формула Ek = (m·v²)/2 містить швидкість у квадраті, подвоєння v приводить до v² = (2)² = 4 рази зростання енергії!'
+                        : 'Объяснение: Поскольку формула Ek = (m·v²)/2 содержит скорость в квадрате, удвоение v приводит к росту энергии в 2² = 4 раза!'}
+                    </div>
+                  )}
+                </div>
+              )}
+
               {/* 2. Condition Statement Box */}
               <div className={`p-3.5 rounded-xl border ${isDark ? 'bg-slate-800/40 border-slate-800' : 'bg-slate-50 border-slate-200'}`}>
                 <div className="flex items-center justify-between mb-1.5">
@@ -1731,7 +2610,7 @@ export const PhotoMathModal: React.FC<PhotoMathModalProps> = ({
                   </span>
                   <button
                     onClick={() => handleCopyText(solvedProblem.problemStatement, 'problem')}
-                    className="text-[10px] text-slate-400 hover:text-white flex items-center gap-1"
+                    className="text-[10px] text-slate-400 hover:text-white flex items-center gap-1 cursor-pointer"
                   >
                     <Copy className="w-3 h-3" />
                     <span>{copiedItemId === 'problem' ? getTranslation('copied', lang) : getTranslation('copy', lang)}</span>
@@ -1740,6 +2619,42 @@ export const PhotoMathModal: React.FC<PhotoMathModalProps> = ({
                 <p className="text-xs sm:text-sm font-medium leading-relaxed text-slate-200">
                   {solvedProblem.problemStatement}
                 </p>
+
+                {/* Fast AI Action Prompt Chips */}
+                <div className="flex flex-wrap items-center gap-1.5 pt-2.5 mt-2 border-t border-slate-700/50">
+                  <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider flex items-center gap-1 mr-1">
+                    <Sparkles className="w-3 h-3 text-amber-400" />
+                    <span>{lang === 'uk' ? 'Швидкі запити до ШІ:' : 'Быстрые запросы к ИИ:'}</span>
+                  </span>
+                  <button
+                    onClick={() => handleQuickActionPrompt('only_answer')}
+                    disabled={isSolving}
+                    className="px-2 py-0.5 rounded-md text-[10px] font-semibold bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 hover:border-slate-500 transition-all flex items-center gap-1 cursor-pointer disabled:opacity-50"
+                  >
+                    <span>⚡ {lang === 'uk' ? 'Тільки відповідь' : 'Только ответ'}</span>
+                  </button>
+                  <button
+                    onClick={() => handleQuickActionPrompt('simple_explanation')}
+                    disabled={isSolving}
+                    className="px-2 py-0.5 rounded-md text-[10px] font-semibold bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 hover:border-slate-500 transition-all flex items-center gap-1 cursor-pointer disabled:opacity-50"
+                  >
+                    <span>👶 {lang === 'uk' ? 'Пояснити просто (7 клас)' : 'Объяснить просто (7 класс)'}</span>
+                  </button>
+                  <button
+                    onClick={() => handleQuickActionPrompt('alternative_method')}
+                    disabled={isSolving}
+                    className="px-2 py-0.5 rounded-md text-[10px] font-semibold bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 hover:border-slate-500 transition-all flex items-center gap-1 cursor-pointer disabled:opacity-50"
+                  >
+                    <span>🔍 {lang === 'uk' ? 'Інший спосіб' : 'Другой способ'}</span>
+                  </button>
+                  <button
+                    onClick={() => handleQuickActionPrompt('practice_problem')}
+                    disabled={isSolving}
+                    className="px-2 py-0.5 rounded-md text-[10px] font-semibold bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 hover:border-slate-500 transition-all flex items-center gap-1 cursor-pointer disabled:opacity-50"
+                  >
+                    <span>📝 {lang === 'uk' ? 'Схожа задача' : 'Похожая задача'}</span>
+                  </button>
+                </div>
               </div>
 
               {/* 3. ⭐ CLASSIC ACADEMIC NOTEBOOK CARD: [ДАНО, СІ, ЗНАЙТИ] || [ЗАКОНИ, РОЗВ'ЯЗАННЯ] ⭐ */}
@@ -1751,7 +2666,17 @@ export const PhotoMathModal: React.FC<PhotoMathModalProps> = ({
                     {/* ДАНО */}
                     <div>
                       <div className="text-xs font-black tracking-wider text-amber-400 uppercase pb-1 border-b border-amber-500/30 flex items-center justify-between">
-                        <span>{getTranslation('givenLabel', lang)}</span>
+                        <div className="flex items-center gap-1.5">
+                          <span>{getTranslation('givenLabel', lang)}</span>
+                          <button
+                            onClick={() => setShowWhatIf(!showWhatIf)}
+                            className="text-[9px] font-bold px-1.5 py-0.5 rounded bg-amber-500/20 text-amber-300 border border-amber-500/40 hover:bg-amber-500/30 transition-all cursor-pointer flex items-center gap-1"
+                            title="Змінити вхідні дані задачі (What-If)"
+                          >
+                            <Sliders className="w-2.5 h-2.5" />
+                            <span>What-If</span>
+                          </button>
+                        </div>
                         <span className="text-[10px] text-slate-500 font-mono font-normal">GIVEN</span>
                       </div>
                       <div className="mt-2 space-y-1.5 font-mono text-xs">
@@ -1773,6 +2698,50 @@ export const PhotoMathModal: React.FC<PhotoMathModalProps> = ({
                           <div className="text-slate-500 text-xs italic">—</div>
                         )}
                       </div>
+
+                      {/* What-If Live Parameter Sandbox */}
+                      {showWhatIf && (
+                        <div className="mt-2 p-2 rounded-lg bg-amber-500/10 border border-amber-500/30 space-y-2 animate-in fade-in">
+                          <span className="text-[10px] text-amber-300 font-bold block">
+                            {lang === 'uk' ? '⚡ Жива зміна параметрів:' : '⚡ Живое изменение параметров:'}
+                          </span>
+                          {solvedProblem.givenData.filter(d => d.raw && !isNaN(Number(d.raw))).map((d, i) => (
+                            <div key={i} className="flex items-center justify-between gap-1 text-[11px] font-mono">
+                              <span className="text-slate-300">{d.symbol || d.label}:</span>
+                              <div className="flex items-center gap-1">
+                                <input
+                                  type="number"
+                                  defaultValue={d.raw}
+                                  onChange={(e) => {
+                                    const val = parseFloat(e.target.value);
+                                    if (!isNaN(val)) {
+                                      setWhatIfValues(prev => ({ ...prev, [d.symbol || d.label]: val }));
+                                    }
+                                  }}
+                                  className="w-16 px-1.5 py-0.5 rounded bg-slate-900 border border-slate-700 text-right text-white"
+                                />
+                                <span className="text-[10px] text-slate-400">{d.unit}</span>
+                              </div>
+                            </div>
+                          ))}
+                          <button
+                            onClick={() => {
+                              let modStatement = solvedProblem.problemStatement;
+                              Object.entries(whatIfValues).forEach(([sym, val]) => {
+                                modStatement = modStatement.replace(new RegExp(`${sym}\\s*=\\s*\\d+\\.?\\d*`, 'i'), `${sym} = ${val}`);
+                              });
+                              const reSolved = solveProblemLocally(modStatement, lang);
+                              if (reSolved) {
+                                setSolvedProblem(reSolved);
+                                try { confetti({ particleCount: 25, spread: 40 }); } catch {}
+                              }
+                            }}
+                            className="w-full py-1 rounded bg-amber-500 hover:bg-amber-400 text-black font-bold text-[10px] transition-colors cursor-pointer"
+                          >
+                            {lang === 'uk' ? 'Перерахувати з новими даними' : 'Пересчитать с новыми данными'}
+                          </button>
+                        </div>
+                      )}
                     </div>
 
                     {/* СІ (Systeme International) */}

@@ -127,7 +127,7 @@ export async function sendGmailMessage(
  * Fetches recent sent messages or calculator notes from Gmail.
  */
 export async function fetchRecentGmailMessages(
-  query: string = 'subject:ВексКалькулятор OR subject:VexCalculator'
+  query: string = 'subject:WexCalculator OR subject:ВексКалькулятор OR subject:VexCalculator'
 ): Promise<GmailMessageSummary[]> {
   try {
     const token = await getAccessToken();

@@ -34,6 +34,7 @@ import { SolutionsPanel } from './components/SolutionsPanel';
 import { ShortcutsModal } from './components/ShortcutsModal';
 import { SettingsModal } from './components/SettingsModal';
 import { PhotoMathModal } from './components/PhotoMathModal';
+import { QuickAnswersDrawer } from './components/QuickAnswersDrawer';
 import { AccountModal } from './components/AccountModal';
 import { GmailSendConfirmModal } from './components/GmailSendConfirmModal';
 import { initAuth, mapFirebaseUser } from './utils/googleAuth';
@@ -214,6 +215,7 @@ export default function App() {
   const [showShortcuts, setShowShortcuts] = useState<boolean>(false);
   const [showSettings, setShowSettings] = useState<boolean>(false);
   const [showPhotoMath, setShowPhotoMath] = useState<boolean>(false);
+  const [showQuickAnswers, setShowQuickAnswers] = useState<boolean>(false);
   const [externalGraphExpr, setExternalGraphExpr] = useState<string | null>(null);
 
   // Calculator logic state
@@ -302,10 +304,10 @@ export default function App() {
       const isUk = lang === 'uk';
       const isEn = lang === 'en';
       const subject = isUk
-        ? `VexCalculator: Розвʼязок ${rec.expression} = ${rec.result}`
+        ? `WexCalculator: Розвʼязок ${rec.expression} = ${rec.result}`
         : isEn
-        ? `VexCalculator: Solution ${rec.expression} = ${rec.result}`
-        : `VexCalculator: Решение ${rec.expression} = ${rec.result}`;
+        ? `WexCalculator: Solution ${rec.expression} = ${rec.result}`
+        : `WexCalculator: Решение ${rec.expression} = ${rec.result}`;
 
       const stepPrefix = isUk ? 'Дія' : isEn ? 'Step' : 'Шаг';
       const resultPrefix = isUk ? 'Підсумок' : isEn ? 'Result' : 'Итог';
@@ -318,10 +320,10 @@ export default function App() {
         .join('\n\n');
 
       const body = isUk
-        ? `Вітаю!\n\nНадсилаю детальний покроковий розрахунок із VexCalculator:\n\nВираз: ${rec.expression}\nРезультат: ${rec.result}\n\nПокроковий розбір:\n${stepsText}\n\n${rec.note ? `Нотатка: ${localizeSeedText(rec.note, lang)}\n` : ''}\nДата: ${new Date(rec.timestamp).toLocaleString()}\nСтворено у VexCalculator.`
+        ? `Вітаю!\n\nНадсилаю детальний покроковий розрахунок із WexCalculator:\n\nВираз: ${rec.expression}\nРезультат: ${rec.result}\n\nПокроковий розбір:\n${stepsText}\n\n${rec.note ? `Нотатка: ${localizeSeedText(rec.note, lang)}\n` : ''}\nДата: ${new Date(rec.timestamp).toLocaleString()}\nСтворено у WexCalculator.`
         : isEn
-        ? `Hello!\n\nSharing step-by-step calculation from VexCalculator:\n\nExpression: ${rec.expression}\nResult: ${rec.result}\n\nStep-by-step breakdown:\n${stepsText}\n\n${rec.note ? `Note: ${localizeSeedText(rec.note, lang)}\n` : ''}\nDate: ${new Date(rec.timestamp).toLocaleString()}\nCreated in VexCalculator.`
-        : `Здравствуйте!\n\nНаправляю подробный пошаговый расчет из VexCalculator:\n\nВыражение: ${rec.expression}\nРезультат: ${rec.result}\n\nПошаговое решение:\n${stepsText}\n\n${rec.note ? `Заметка: ${rec.note}\n` : ''}\nДата: ${new Date(rec.timestamp).toLocaleString()}\nСоздано в VexCalculator.`;
+        ? `Hello!\n\nSharing step-by-step calculation from WexCalculator:\n\nExpression: ${rec.expression}\nResult: ${rec.result}\n\nStep-by-step breakdown:\n${stepsText}\n\n${rec.note ? `Note: ${localizeSeedText(rec.note, lang)}\n` : ''}\nDate: ${new Date(rec.timestamp).toLocaleString()}\nCreated in WexCalculator.`
+        : `Здравствуйте!\n\nНаправляю подробный пошаговый расчет из WexCalculator:\n\nВыражение: ${rec.expression}\nРезультат: ${rec.result}\n\nПошаговое решение:\n${stepsText}\n\n${rec.note ? `Заметка: ${rec.note}\n` : ''}\nДата: ${new Date(rec.timestamp).toLocaleString()}\nСоздано в WexCalculator.`;
 
       const stepsHtml = rec.steps
         .map(
@@ -335,7 +337,7 @@ export default function App() {
 
       const html = `
         <div style="font-family: Arial, sans-serif; max-width: 600px; padding: 24px; border: 1px solid #cbd5e1; border-radius: 14px;">
-          <h2 style="color: #2563eb; margin-top: 0;">${isUk ? "VexCalculator — Покроковий розв'язок" : isEn ? 'VexCalculator — Step-by-Step Solution' : 'VexCalculator — Пошаговое решение'}</h2>
+          <h2 style="color: #2563eb; margin-top: 0;">${isUk ? "WexCalculator — Покроковий розв'язок" : isEn ? 'WexCalculator — Step-by-Step Solution' : 'WexCalculator — Пошаговое решение'}</h2>
           <div style="background: #eff6ff; padding: 16px; border-radius: 10px; margin-bottom: 18px;">
             <div style="font-size: 14px; color: #475569;">${isUk ? 'Вираз:' : isEn ? 'Expression:' : 'Выражение:'}</div>
             <div style="font-size: 18px; font-weight: bold; color: #1e293b; font-family: monospace;">${rec.expression}</div>
@@ -346,7 +348,7 @@ export default function App() {
           ${stepsHtml}
           ${rec.note ? `<p style="margin-top: 14px; font-style: italic; color: #64748b;">${isUk ? 'Нотатка:' : isEn ? 'Note:' : 'Заметка:'} ${localizeSeedText(rec.note, lang)}</p>` : ''}
           <hr style="border: none; border-top: 1px solid #e2e8f0; margin-top: 20px;" />
-          <p style="font-size: 11px; color: #94a3b8; margin-bottom: 0;">${isUk ? 'Надіслано за допомогою Google Workspace Gmail API з VexCalculator' : isEn ? 'Sent using Google Workspace Gmail API from VexCalculator' : 'Отправлено с помощью Google Workspace Gmail API из VexCalculator'}</p>
+          <p style="font-size: 11px; color: #94a3b8; margin-bottom: 0;">${isUk ? 'Надіслано за допомогою Google Workspace Gmail API з WexCalculator' : isEn ? 'Sent using Google Workspace Gmail API from WexCalculator' : 'Отправлено с помощью Google Workspace Gmail API из WexCalculator'}</p>
         </div>
       `;
 
@@ -382,15 +384,15 @@ export default function App() {
         setMode('graphs');
         handleShareGraphViaGmail(
           isUk
-            ? 'VexCalculator: Математичний графік'
+            ? 'WexCalculator: Математичний графік'
             : isEn
-            ? 'VexCalculator: Math Function Graph'
-            : 'VexCalculator: Математический график',
+            ? 'WexCalculator: Math Function Graph'
+            : 'WexCalculator: Математический график',
           isUk
-            ? 'Ділюся математичним графіком функцій із VexCalculator.'
+            ? 'Ділюся математичним графіком функцій із WexCalculator.'
             : isEn
-            ? 'Sharing mathematical functions graph from VexCalculator.'
-            : 'Делюсь математическим графиком функций из VexCalculator.'
+            ? 'Sharing mathematical functions graph from WexCalculator.'
+            : 'Делюсь математическим графиком функций из WexCalculator.'
         );
       } else {
         const topRec = records[0];
@@ -401,15 +403,15 @@ export default function App() {
             isOpen: true,
             defaultRecipient: user?.email || '',
             defaultSubject: isUk
-              ? 'VexCalculator: Обчислення'
+              ? 'WexCalculator: Обчислення'
               : isEn
-              ? 'VexCalculator: Calculations'
-              : 'VexCalculator: Вычисления',
+              ? 'WexCalculator: Calculations'
+              : 'WexCalculator: Вычисления',
             defaultBody: isUk
-              ? 'Вітаю!\n\nДілюся математичними розрахунками із VexCalculator.'
+              ? 'Вітаю!\n\nДілюся математичними розрахунками із WexCalculator.'
               : isEn
-              ? 'Hello!\n\nSharing mathematical calculations from VexCalculator.'
-              : 'Здравствуйте!\n\nДелюсь математическими расчетами из VexCalculator.',
+              ? 'Hello!\n\nSharing mathematical calculations from WexCalculator.'
+              : 'Здравствуйте!\n\nДелюсь математическими расчетами из WexCalculator.',
           });
         }
       }
@@ -742,6 +744,17 @@ export default function App() {
     [displayValue, angleMode, mode, settings.decimalPlaces, triggerSound]
   );
 
+  const handleInsertConstant = useCallback(
+    (value: string | number, _symbol: string) => {
+      clearError();
+      triggerSound('click');
+      const valStr = String(value);
+      setDisplayValue(valStr);
+      setAwaitingNewOperand(true);
+    },
+    [triggerSound]
+  );
+
   const handleBitwise = useCallback(
     (op: string) => {
       clearError();
@@ -923,6 +936,35 @@ export default function App() {
     triggerSound('equals');
   };
 
+  const handleInsertFromQuickAnswers = (val: string, note?: string) => {
+    triggerSound('equals');
+    setDisplayValue(val);
+    setFormula('');
+    setAwaitingNewOperand(true);
+    if (note) {
+      const rec: CalculationRecord = {
+        id: `qa-${Date.now()}`,
+        timestamp: Date.now(),
+        expression: note,
+        result: val,
+        rawResult: Number(val) || 0,
+        steps: [
+          {
+            stepNumber: 1,
+            description: note,
+            subExpression: note,
+            subResult: val,
+            resultingExpression: val,
+          },
+        ],
+        mode: 'standard',
+        note: `Бліц: ${note}`,
+      };
+      setRecords((prev) => [rec, ...prev]);
+    }
+    setShowQuickAnswers(false);
+  };
+
   // Global physical keyboard listener
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -1094,6 +1136,7 @@ export default function App() {
           onOpenShortcuts={() => setShowShortcuts(true)}
           onOpenSettings={() => setShowSettings(true)}
           onOpenPhotoMath={() => setShowPhotoMath(true)}
+          onOpenQuickAnswers={() => setShowQuickAnswers(true)}
           lang={lang}
           setLang={setLang}
           user={user}
@@ -1199,6 +1242,8 @@ export default function App() {
                     onToggleSign={handleToggleSign}
                     isDark={isDark}
                     osTheme={osTheme}
+                    onInsertConstant={handleInsertConstant}
+                    lang={lang}
                   />
                 </div>
               </>
@@ -1260,6 +1305,15 @@ export default function App() {
         }}
         lang={lang}
         isDark={isDark}
+      />
+
+      {/* Quick Answers & Instant Solvers Drawer (20+ Tools) */}
+      <QuickAnswersDrawer
+        isOpen={showQuickAnswers}
+        onClose={() => setShowQuickAnswers(false)}
+        isDark={isDark}
+        lang={lang}
+        onInsertToCalculator={handleInsertFromQuickAnswers}
       />
 
       {/* Google Account & Workspace Modal */}
