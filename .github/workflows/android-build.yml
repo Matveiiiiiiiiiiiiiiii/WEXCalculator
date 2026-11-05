@@ -22,8 +22,10 @@ jobs:
       - name: Install Original Dependencies
         run: bun install
 
-      - name: Force Install Capacitor Dependencies
-        run: bun add @capacitor/core @capacitor/android && bun add -d @capacitor/cli
+      - name: Force Install Project and Capacitor Dependencies
+        run: |
+          bun add canvas-confetti @capacitor/core @capacitor/android
+          bun add -d @types/canvas-confetti @capacitor/cli
 
       - name: Disable Strict TypeScript Checks for Build
         run: |
