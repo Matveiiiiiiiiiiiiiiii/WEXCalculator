@@ -2,70 +2,33 @@ name: Build Android APK
 
 on:
   push:
-    branches:
-      - main
-  workflow_dispatch:
+    branches: [ "main" ] 
+  pull_request:
+    branches: [ "main" ]
 
 jobs:
   build:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout Source Code
-        uses: actions/checkout@v4
+    - name: Checkout repository
+      uses: actions/checkout@v4
 
-      - name: Setup Oven Bun
-        uses: oven-sh/setup-bun@v2
-        with:
-          bun-version: latest
+    - name: Set up JDK 17
+      uses: actions/setup-java@v4
+      with:
+        distribution: 'zulu'
+        java-version: '17'
+        cache: 'gradle'
 
-      - name: Install Original Dependencies
-        run: bun install
+    - name: Grant execute permission for gradlew
+      run: chmod +x gradlew
 
-      - name: Auto-Detect and Install Missing Studio Libraries
-        run: |
-          # Устанавливаем базовые вещи, которые точно нужны Capacitor и анимациям
-          bun add canvas-confetti @capacitor/core @capacitor/android || true
-          bun add -d @types/canvas-confetti @capacitor/cli || true
-          
-          # Сканируем новые файлы на наличие других популярных библиотек из AI Studio и ставим их
-          if grep -q "lucide-react" -r src/; then bun add lucide-react || true; fi
-          if grep -q "framer-motion" -r src/; then bun add framer-motion || true; fi
-          if grep -q "recharts" -r src/; then bun add recharts || true; fi
-          if grep -q "clsx" -r src/; then bun add clsx || true; fi
-          if grep -q "tailwind-merge" -r src/; then bun add tailwind-merge || true; fi
+    - name: Build with Gradle
+      run: ./gradlew assembleDebug
 
-      - name: Disable Strict TypeScript Checks for Build
-        run: |
-          sed -i 's/"build": "tsc && vite build"/"build": "vite build"/g' package.json || true
-          sed -i 's/"build": "tsc -b && vite build"/"build": "vite build"/g' package.json || true
-
-      - name: Build Web App (Vite)
-        run: bun run build
-
-      - name: Set up JDK 21
-        uses: actions/setup-java@v4
-        with:
-          java-version: '21'
-          distribution: 'temurin'
-
-      - name: Initialize Capacitor and Create Android Folder
-        run: |
-          bunx cap init "WEXCalculator" "com.aiapp.wexcalculator" --web-dir=dist
-          bunx cap add android
-
-      - name: Sync Web Code to Android Project
-        run: bunx cap sync android
-
-      - name: Build APK via Gradle
-        run: |
-          cd android
-          ./gradlew assembleDebug
-        env:
-          ANDROID_HOME: /usr/local/lib/android/sdk
-
-      - name: Upload APK Artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: wex-calculator-apk
-          path: android/app/build/outputs/apk/debug/app-debug.apk
+    - name: Upload APK Artifact
+      uses: actions/upload-artifact@v4
+      with:
+        name: app-debug-apk
+        path: app/build/outputs/apk/debug/app-debug.apk
