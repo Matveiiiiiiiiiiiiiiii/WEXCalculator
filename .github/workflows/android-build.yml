@@ -22,6 +22,11 @@ jobs:
       - name: Install Dependencies
         run: bun install
 
+      - name: Install Capacitor Core & Android Platforms
+        run: |
+          bun add @capacitor/core @capacitor/android
+          bun add -d @capacitor/cli
+
       - name: Build Web App (Vite)
         run: bun run build
 
