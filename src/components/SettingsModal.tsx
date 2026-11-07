@@ -1,7 +1,8 @@
 import React from 'react';
 import { AppSettings, AppTheme, AccentColor } from '../types/calculator';
 import { Language, LANGUAGES, getTranslation } from '../utils/i18n';
-import { Settings, Palette, Volume2, Sliders, X, Check, RotateCcw, Globe } from 'lucide-react';
+import { Settings, Palette, Volume2, Sliders, X, Check, RotateCcw, Globe, Sparkles, Smartphone, Tablet, Monitor, GraduationCap } from 'lucide-react';
+import { DeviceMode } from '../types/calculator';
 
 interface SettingsModalProps {
   isOpen: boolean;
@@ -12,6 +13,7 @@ interface SettingsModalProps {
   lang: Language;
   setLang: (l: Language) => void;
   isDark: boolean;
+  onOpenTutorial?: () => void;
 }
 
 export const SettingsModal: React.FC<SettingsModalProps> = ({
@@ -23,6 +25,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
   lang,
   setLang,
   isDark,
+  onOpenTutorial,
 }) => {
   if (!isOpen) return null;
 
@@ -36,6 +39,11 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
     { id: 'nordic', name: 'Nordic Frost', preview: 'bg-slate-950 border-cyan-800 text-cyan-200', isDark: true },
     { id: 'oled', name: 'OLED Pure Black', preview: 'bg-black border-neutral-800 text-white', isDark: true },
     { id: 'sakura', name: 'Sakura Blush', preview: 'bg-rose-950/70 border-rose-800 text-rose-100', isDark: true },
+    { id: 'aurora-cosmic', name: 'Aurora Cosmic', preview: 'bg-[#101633] border-indigo-500 text-indigo-300', isDark: true },
+    { id: 'obsidian-gold', name: 'Obsidian Gold', preview: 'bg-[#121318] border-amber-500 text-amber-300', isDark: true },
+    { id: 'synthwave-80s', name: 'Synthwave 80s', preview: 'bg-[#220d3d] border-fuchsia-500 text-fuchsia-300', isDark: true },
+    { id: 'emerald-glass', name: 'Emerald Glass', preview: 'bg-[#062c20] border-emerald-500 text-emerald-300', isDark: true },
+    { id: 'paper-notebook', name: 'Paper Notebook', preview: 'bg-[#fffdf9] border-stone-400 text-stone-800', isDark: false },
   ];
 
   const accents: { id: AccentColor; name: string; bg: string }[] = [
@@ -110,6 +118,51 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
             </div>
           </div>
 
+          {/* Section: Device Mode (PC / Tablet / Phone - Phone by default) */}
+          <div>
+            <div className="flex items-center justify-between mb-2">
+              <div className="flex items-center gap-1.5 text-xs font-bold uppercase tracking-wider text-slate-400">
+                <Smartphone className="w-3.5 h-3.5 text-blue-400" />
+                <span>{getTranslation('deviceMode', lang)}</span>
+              </div>
+              <span className="text-[10px] text-blue-400 font-semibold px-2 py-0.5 rounded-full bg-blue-500/10 border border-blue-500/20">
+                {lang === 'uk' ? 'За замовчуванням: Телефон' : lang === 'ru' ? 'По умолчанию: Телефон' : 'Default: Phone'}
+              </span>
+            </div>
+            <p className="text-[11px] text-slate-400 mb-2.5">
+              {getTranslation('deviceModeDesc', lang)}
+            </p>
+            <div className="grid grid-cols-3 gap-2">
+              {[
+                { id: 'phone', label: getTranslation('devicePhone', lang), icon: Smartphone, desc: '430px' },
+                { id: 'tablet', label: getTranslation('deviceTablet', lang), icon: Tablet, desc: '880px' },
+                { id: 'pc', label: getTranslation('devicePc', lang), icon: Monitor, desc: 'Full window' },
+              ].map((dm) => {
+                const IconComponent = dm.icon;
+                const active = (settings.deviceMode || 'phone') === dm.id;
+                return (
+                  <button
+                    key={dm.id}
+                    onClick={() => onUpdateSettings({ deviceMode: dm.id as DeviceMode })}
+                    className={`p-2.5 rounded-xl border text-center transition-all cursor-pointer flex flex-col items-center justify-center gap-1.5 ${
+                      active
+                        ? isDark
+                          ? 'bg-blue-600/20 border-blue-400 text-blue-300 font-bold ring-2 ring-blue-500/50 shadow-md'
+                          : 'bg-blue-50 border-blue-600 text-blue-700 font-bold ring-2 ring-blue-400/50 shadow-md'
+                        : isDark
+                        ? 'border-slate-800 hover:bg-slate-800 text-slate-300'
+                        : 'border-slate-200 hover:bg-slate-100 text-slate-700'
+                    }`}
+                  >
+                    <IconComponent className={`w-5 h-5 ${active ? 'text-blue-500' : 'text-slate-400'}`} />
+                    <span className="text-xs">{dm.label}</span>
+                    <span className="text-[10px] opacity-60 font-mono">{dm.desc}</span>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+
           {/* Section 1: Themes */}
           <div>
             <div className="flex items-center gap-1.5 text-xs font-bold uppercase tracking-wider text-slate-400 mb-2.5">
@@ -135,6 +188,39 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                       <Check className="w-3 h-3" />
                     </div>
                   )}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* Section: Animated Background */}
+          <div>
+            <div className="flex items-center gap-1.5 text-xs font-bold uppercase tracking-wider text-slate-400 mb-2.5">
+              <Sparkles className="w-3.5 h-3.5 text-indigo-400" />
+              <span>Анимированный живой фон / Ambient Background</span>
+            </div>
+            <div className="grid grid-cols-2 sm:grid-cols-5 gap-2">
+              {[
+                { id: 'aurora', label: 'Северное сияние' },
+                { id: 'particles', label: 'Частицы' },
+                { id: 'matrix', label: 'Matrix поток' },
+                { id: 'waves', label: 'Волны' },
+                { id: 'off', label: 'Выключен' },
+              ].map((bgOpt) => (
+                <button
+                  key={bgOpt.id}
+                  onClick={() => onUpdateSettings({ animatedBg: bgOpt.id as any })}
+                  className={`p-2 rounded-lg border text-xs font-medium text-center transition-all cursor-pointer ${
+                    (settings.animatedBg || 'aurora') === bgOpt.id
+                      ? isDark
+                        ? 'bg-indigo-600/30 border-indigo-400 text-indigo-300 font-bold shadow-xs'
+                        : 'bg-indigo-50 border-indigo-500 text-indigo-700 font-bold shadow-xs'
+                      : isDark
+                      ? 'border-slate-800 hover:bg-slate-800 text-slate-300'
+                      : 'border-slate-200 hover:bg-slate-100 text-slate-700'
+                  }`}
+                >
+                  {bgOpt.label}
                 </button>
               ))}
             </div>
@@ -240,6 +326,26 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
               />
             </div>
           </div>
+
+          {/* Section 5: Interactive Tutorial */}
+          {onOpenTutorial && (
+            <div className="pt-2 border-t border-slate-800/40">
+              <button
+                onClick={() => {
+                  onClose();
+                  onOpenTutorial();
+                }}
+                className={`w-full py-2.5 px-3 rounded-xl border text-xs font-semibold flex items-center justify-center gap-2 transition-all cursor-pointer ${
+                  isDark
+                    ? 'bg-blue-600/10 border-blue-500/30 text-blue-300 hover:bg-blue-600/20'
+                    : 'bg-blue-50 border-blue-200 text-blue-700 hover:bg-blue-100'
+                }`}
+              >
+                <GraduationCap className="w-4 h-4 text-blue-400" />
+                <span>{lang === 'uk' ? 'Пройти інтерактивний туторіал' : lang === 'ru' ? 'Пройти интерактивный туториал' : 'Start Interactive Tutorial'}</span>
+              </button>
+            </div>
+          )}
         </div>
 
         {/* Footer */}

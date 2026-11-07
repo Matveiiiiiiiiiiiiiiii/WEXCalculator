@@ -386,6 +386,9 @@ export function evaluateFractionStringWithSteps(rawExpr: string): {
   rawResult: number;
   steps: CalculationStep[];
   error?: string;
+  mixedResult?: string;
+  improperResult?: string;
+  decimalResult?: number;
 } {
   const normalized = normalizeUnicodeFractions(rawExpr.trim());
 
@@ -422,6 +425,9 @@ export function evaluateFractionStringWithSteps(rawExpr: string): {
         resultText: `${calc.mixedResult} (≈ ${formatResultNumber(calc.decimalResult)})`,
         rawResult: calc.decimalResult,
         steps: calc.steps,
+        mixedResult: calc.mixedResult,
+        improperResult: calc.improperResult,
+        decimalResult: calc.decimalResult,
       };
     }
   }

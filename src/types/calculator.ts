@@ -38,9 +38,16 @@ export type AppTheme =
   | 'retro-win98'
   | 'nordic'
   | 'oled'
-  | 'sakura';
+  | 'sakura'
+  | 'aurora-cosmic'
+  | 'obsidian-gold'
+  | 'synthwave-80s'
+  | 'emerald-glass'
+  | 'paper-notebook';
 
 export type AccentColor = 'blue' | 'emerald' | 'amber' | 'purple' | 'rose' | 'cyan';
+
+export type AnimatedBackgroundMode = 'aurora' | 'particles' | 'matrix' | 'waves' | 'off';
 
 export interface CalculationStep {
   stepNumber: number;
@@ -67,6 +74,8 @@ export interface MemoryItem {
   timestamp: number;
 }
 
+export type DeviceMode = 'phone' | 'tablet' | 'pc';
+
 export interface AppSettings {
   theme: AppTheme;
   accentColor: AccentColor;
@@ -74,6 +83,9 @@ export interface AppSettings {
   decimalPlaces: number;
   autoExpandSteps: boolean;
   historyLimit: number;
+  animatedBg?: AnimatedBackgroundMode;
+  animationsEnabled?: boolean;
+  deviceMode?: DeviceMode;
 }
 
 export type ProblemSubject =
